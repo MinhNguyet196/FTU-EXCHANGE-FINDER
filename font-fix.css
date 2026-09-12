@@ -6,3 +6,79 @@
   letter-spacing: 0;
   word-spacing: 0;
 }
+
+/* Form controls otherwise inherit a remote font that renders some Vietnamese
+   diacritics with a visibly different weight in certain browsers. */
+input, select, textarea, button, .hero-search input {
+  font-family: Arial, Tahoma, sans-serif;
+  font-synthesis: none;
+  font-weight: 400;
+}
+.hero-search button, .primary-button, .header-action, .details-link { font-weight: 700; }
+
+/* Detail-page rating card behaves like an obvious, accessible link. */
+.detail-stat-link {
+  border: 0;
+  padding: 19px 21px;
+  text-align: left;
+  background: #fff;
+  color: inherit;
+  transition: background .2s, color .2s;
+}
+.detail-stat-link span { display: block; color: var(--muted); font-size: 12px; }
+.detail-stat-link b { display: block; font-size: 17px; margin-top: 5px; }
+.detail-stat-link small { display: block; color: var(--red); font-size: 11px; font-weight: 700; margin-top: 5px; }
+.detail-stat-link:hover, .detail-stat-link:focus-visible { background: #fff2f3; outline: 2px solid var(--red); outline-offset: -2px; }
+
+/* Review discovery controls. */
+.review-filters {
+  max-width: 880px;
+  margin: 38px auto 0;
+  padding: 22px 28px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 14px;
+}
+.review-filters label { display: block; color: var(--muted); font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+.review-filters input, .review-filters select { width: 100%; border: 1px solid #ddd4d1; background: #fff; border-radius: 6px; padding: 10px; outline-color: var(--red); }
+.review-stars small { color: var(--muted); font-size: 11px; letter-spacing: 0; }
+.dialog-note { color: var(--muted); line-height: 1.55; margin: -12px 0 22px; }
+dialog label span { color: var(--muted); font-weight: 400; }
+.criteria-inputs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.criteria-inputs label { font-family: Arial, Tahoma, sans-serif; }
+.review-featured { max-width: 880px; margin: 44px auto 0; padding: 0 28px 75px; }
+.review-featured-heading { display:flex; align-items:end; justify-content:space-between; gap:24px; border-bottom:1px solid var(--line); padding-bottom:20px; }
+.review-featured-heading h2 { font:700 29px 'Playfair Display'; margin:0; }
+.review-featured-heading p:last-child { margin:0; color:var(--muted); max-width:310px; line-height:1.5; }
+.school-rating-summary { display:grid; grid-template-columns:230px 1fr; gap:55px; align-items:center; padding:38px 0; border-bottom:1px solid var(--line); }
+.school-rating-summary .score-big { text-align:center; border-right:1px solid var(--line); padding-right:52px; }
+.school-rating-summary .score-big b { font:700 68px/1 'Playfair Display'; display:block; }
+.school-rating-summary .score-big span,.school-rating-summary .score-big small { color:var(--muted); font-size:12px; }
+.school-rating-summary .stars { letter-spacing:3px; color:var(--gold); margin:9px 0; }
+.school-rating-summary .score-bars>div { display:grid; grid-template-columns:130px 1fr 42px; gap:13px; align-items:center; margin:15px 0; font-size:13px; }
+.school-rating-summary .score-bars b { height:7px; background:#eee6e2; border-radius:99px; overflow:hidden; }
+.school-rating-summary .score-bars b:after { content:''; display:block; background:var(--red); width:var(--score); height:100%; border-radius:99px; }
+.school-rating-summary .score-bars em { font-style:normal; font-weight:700; }
+.empty-bars em { grid-column:2 / 4; color:var(--muted); font-weight:400; }
+.review-actions { display:flex; gap:8px; margin-top:16px; }
+.review-actions button { border:1px solid var(--line); background:#fff; border-radius:999px; padding:7px 11px; color:var(--muted); font-size:12px; }
+.review-actions button:hover { color:var(--red); border-color:#e7b5bb; background:#fff5f6; }
+.review-actions button.selected { color:#fff; border-color:var(--red); background:var(--red); }
+.review-score-button { border:0; background:transparent; color:var(--gold); cursor:pointer; text-align:right; padding:0; }
+.review-score-button span { display:block; color:var(--red); font-size:10px; font-weight:700; letter-spacing:.03em; margin-top:3px; }
+#rating-detail-dialog { max-width:460px; }
+.rating-person { color:var(--muted); margin:0 0 18px; }
+.rating-detail-lines { border-top:1px solid var(--line); }
+.rating-detail-lines > div { display:flex; justify-content:space-between; gap:18px; padding:14px 0; border-bottom:1px solid var(--line); }
+.rating-detail-lines b { color:var(--gold); letter-spacing:1px; white-space:nowrap; }
+.show-all-reviews { display:block; margin:25px auto 0; border:1px solid var(--red); color:var(--red); background:#fff; border-radius:7px; padding:11px 17px; font-weight:700; }
+@media (max-width: 800px) { .criteria-inputs { grid-template-columns:1fr; gap:0; } .review-featured { padding:0 20px 55px; } .review-featured-heading { align-items:start; flex-direction:column; } .school-rating-summary { grid-template-columns:1fr; gap:22px; } .school-rating-summary .score-big { border:0; padding:0; } .school-rating-summary .score-bars>div { grid-template-columns:115px 1fr 36px; } }
+@media (max-width: 800px) {
+  .review-filters { grid-template-columns: 1fr 1fr; margin: 28px 20px 0; padding: 18px; }
+}
+@media (max-width: 480px) {
+  .review-filters { grid-template-columns: 1fr; }
+}
