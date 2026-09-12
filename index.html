@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="FTU Exchange Finder – tìm trường đối tác phù hợp với tiến độ học tập của bạn." />
+    <title>FTU Exchange Finder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="font-fix.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#home" aria-label="FTU Exchange Finder"><span class="brand-mark">F</span><span>FTU<span class="brand-light">X</span></span></a>
+      <nav class="main-nav" aria-label="Điều hướng chính">
+        <a class="nav-link active" href="#home">Trang chủ</a>
+        <a class="nav-link" href="#universities">Danh sách trường</a>
+        <a class="nav-link" href="#reviews">Review</a>
+      </nav>
+      <button class="header-action" data-scroll-upload><i data-lucide="sparkles"></i> Tìm theo hồ sơ</button>
+    </header>
+
+    <main>
+      <section id="home" class="page active">
+        <section class="hero">
+          <div class="hero-copy">
+            <p class="eyebrow">FTU GLOBAL MOBILITY</p>
+            <h1>Go further.<br /><em>Grow with purpose.</em></h1>
+            <p class="hero-lead">Khám phá ngôi trường trao đổi phù hợp nhất với hành trình học tập của bạn.</p>
+            <form class="hero-search" id="hero-search">
+              <i data-lucide="search"></i><input id="search-input" type="search" placeholder="Tên trường, châu lục hoặc quốc gia..." />
+              <button type="submit">Tìm kiếm <i data-lucide="arrow-up-right"></i></button>
+            </form>
+            <div class="hero-facts"><span><b id="school-count">81</b> trường đối tác</span><span><b id="mapping-count">3,800+</b> học phần quy đổi</span></div>
+          </div>
+          <div class="hero-art" aria-hidden="true"><div class="globe"><span class="orbit orbit-a"></span><span class="orbit orbit-b"></span><span class="globe-dot dot-one"></span><span class="globe-dot dot-two"></span><span class="globe-dot dot-three"></span></div><p>HÀ NỘI<br /><b>↗ WORLD</b></p></div>
+        </section>
+
+        <section class="upload-section" id="upload-tool">
+          <div class="section-heading"><div><p class="eyebrow">SMART MATCHING</p><h2>Để dữ liệu chọn đường đi</h2></div><p>Bạn hãy tải file Chương trình đào tạo từ FTUGate lên để hệ thống phân tích các môn chưa hoàn thành và gợi ý trường trao đổi phù hợp.</p></div>
+          <div class="upload-layout">
+            <label class="dropzone" id="dropzone" for="curriculum-file"><input id="curriculum-file" type="file" accept=".xlsx,.xls,.csv" hidden /><span class="upload-icon"><i data-lucide="file-up"></i></span><strong>Thả file chương trình đào tạo vào đây</strong><small>Hỗ trợ .xlsx, .xls, .csv · Dữ liệu chỉ được xử lý trên thiết bị của bạn</small><span class="browse-file">Chọn tệp</span></label>
+            <div class="matching-note"><i data-lucide="shield-check"></i><div><strong>Dữ liệu của bạn được bảo vệ</strong><p>File chỉ được đọc trực tiếp trên trình duyệt của bạn để đối chiếu. Website không lưu, gửi hoặc chia sẻ file này. Kết quả chỉ là gợi ý, hãy xác nhận quy đổi với đơn vị phụ trách trước khi nộp hồ sơ.</p></div></div>
+          </div>
+          <div id="upload-result" class="upload-result" hidden></div>
+        </section>
+
+        <section class="featured-section"><div class="section-heading compact"><div><p class="eyebrow">FEATURED DESTINATIONS</p><h2>Điểm đến được quan tâm</h2></div><a href="#universities" class="text-link">Xem tất cả <i data-lucide="arrow-right"></i></a></div><div class="featured-grid" id="featured-grid"></div></section>
+      </section>
+
+      <section id="universities" class="page">
+        <div class="catalog-banner"><p class="eyebrow">EXPLORE THE WORLD</p><h1>Chọn nơi bạn thuộc về</h1><p>Danh sách đối tác mở đăng ký bổ sung kỳ Fall 2026.</p></div>
+        <div class="catalog-layout">
+          <aside class="filters"><div class="filter-title"><h3>Bộ lọc</h3><button id="reset-filters">Xóa tất cả</button></div><label>Tìm nhanh<input id="catalog-search" type="search" placeholder="Nhập tên trường..." /></label><label>Quốc gia / khu vực<select id="country-filter"><option value="">Tất cả điểm đến</option></select></label><label>Ngôn ngữ giảng dạy<select id="language-filter"><option value="">Tất cả ngôn ngữ</option><option value="Tiếng Anh">Tiếng Anh</option><option value="Tiếng Nhật">Tiếng Nhật</option><option value="Tiếng Trung">Tiếng Trung</option></select></label><label>Yêu cầu ngoại ngữ<select id="requirement-filter"><option value="">Tất cả yêu cầu</option><option value="IELTS">IELTS / TOEFL</option><option value="JLPT">JLPT</option><option value="HSK">HSK</option></select></label><label>Ngành học tại FTU<select id="faculty-filter"><option value="">Tất cả ngành</option><option value="KTQT">Kinh tế quốc tế</option><option value="TCNH">Tài chính – Ngân hàng</option><option value="KTKT">Kế toán – Kiểm toán</option><option value="Luật">Luật</option></select></label></aside>
+          <div class="catalog-results"><div class="results-toolbar"><p><b id="results-count">0</b> trường phù hợp</p><label>Sắp xếp <select id="sort-select"><option value="match">Số môn có thể quy đổi</option><option value="slots">Chỉ tiêu nhiều nhất</option><option value="name">Tên trường A–Z</option></select></label></div><div class="university-grid" id="university-grid"></div></div>
+        </div>
+      </section>
+
+      <section id="detail" class="page"><div id="detail-content"></div></section>
+
+      <section id="reviews" class="page reviews-page"><div class="reviews-hero"><p class="eyebrow">ALUMNI VOICES</p><h1>Nghe người đi trước kể chuyện</h1><p>Những điều brochure không thể nói hết.</p><button class="primary-button" data-open-review><i data-lucide="pen-line"></i> Viết review</button></div><section class="review-summary"><div class="score-big"><b>4.5</b><span>trên 5</span><div class="stars">★★★★★</div><small>Dựa trên 48 chia sẻ</small></div><div class="score-bars"><div><span>Chất lượng học</span><b style="--score:92%"></b><em>4.6</em></div><div><span>Ký túc xá</span><b style="--score:80%"></b><em>4.0</em></div><div><span>Môi trường sống</span><b style="--score:94%"></b><em>4.7</em></div></div></section><section class="review-list" id="review-list"></section></section>
+    </main>
+
+    <footer><a class="brand" href="#home"><span class="brand-mark">F</span><span>FTU<span class="brand-light">X</span></span></a><p>Exchange Finder · A student project concept</p><p>Creative · Excellent · Responsible · Brave · Diverse · Harmonious</p></footer>
+
+    <dialog id="review-dialog"><button class="close-dialog" data-close-review aria-label="Đóng">×</button><p class="eyebrow">YOUR STORY MATTERS</p><h2>Chia sẻ trải nghiệm</h2><form id="review-form"><div class="two-cols"><label>Họ và tên<input required placeholder="Nguyễn Minh Anh" /></label><label>Trường đã trao đổi<input required placeholder="Ví dụ: Waseda University" /></label></div><label>Đánh giá tổng quan<select><option>★★★★★ · 5 sao</option><option>★★★★☆ · 4 sao</option><option>★★★☆☆ · 3 sao</option></select></label><label>Chia sẻ của bạn<textarea required rows="5" placeholder="Điều gì bạn ước mình đã biết trước khi đi?"></textarea></label><button class="primary-button" type="submit">Gửi review <i data-lucide="send"></i></button></form></dialog>
+    <div id="toast" role="status"></div>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="https://unpkg.com/lucide@latest"></script><script src="data.js"></script><script src="app.js"></script>
+  </body>
+</html>

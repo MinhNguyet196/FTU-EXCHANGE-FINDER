@@ -1,0 +1,8 @@
+/* Avoid mixed fallback glyph weights for Vietnamese diacritics in remote fonts. */
+.hero-lead {
+  font-family: Arial, Tahoma, sans-serif;
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+  word-spacing: 0;
+}
