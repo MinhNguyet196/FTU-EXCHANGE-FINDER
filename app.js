@@ -26,10 +26,49 @@ const placeAliases = {
   Spain: 'tây ban nha tay ban nha spain', Italy: 'ý y italy', India: 'ấn độ an do india',
   Indonesia: 'indonesia in đô nê xi a', Taiwan: 'đài loan dai loan taiwan'
 };
+const placeLabels = { Asia: 'Châu Á', Europe: 'Châu Âu', America: 'Châu Mỹ', Japan: 'Nhật Bản', Korea: 'Hàn Quốc', China: 'Trung Quốc', USA: 'Mỹ', 'The Bahamas': 'Bahamas', Germany: 'Đức', France: 'Pháp', Belgium: 'Bỉ', Finland: 'Phần Lan', Norway: 'Na Uy', Sweden: 'Thụy Điển', Switzerland: 'Thụy Sĩ', Spain: 'Tây Ban Nha', Italy: 'Ý', India: 'Ấn Độ', Indonesia: 'Indonesia', Taiwan: 'Đài Loan' };
+// The source exchanges classify equivalencies by FTU faculty, not by major.
+const majorToFaculty = {
+  economics:['KTQT','KT&KDQT'],logistics:['KT&KDQT'],'international-economics':['KTQT','KT&KDQT'],'digital-economics':['KTQT','CN&KHDL','KHDL'],'international-business':['KT&KDQT'],'commercial-business':['KT&KDQT'],
+  'business-administration':['QTKD'],'industrial-management':['QTKD'],'human-resources':['QTKD'],ecommerce:['QTKD','TTTM'],marketing:['QTKD'],'hotel-management':['QTKD'],'political-economy':['KHCT','Cơ Bản','Cơ bản'],
+  'finance-banking':['TCNH'],fintech:['TCNH','CN&KHDL','KHDL'],accounting:['KTKT'],auditing:['KTKT'],'international-trade-law':['Luật'],law:['Luật'],'economic-law':['Luật'],'civil-law':['Luật'],
+  'computer-science':['CN&KHDL','KHDL'],'artificial-intelligence':['CN&KHDL','KHDL'],'data-science':['CN&KHDL','KHDL'],'english-language':['TACN','TATM'],'chinese-language':['Tiếng Trung'],'japanese-language':['Tiếng Nhật'],'french-language':['Tiếng Pháp']
+};
 const matchMap = new Map();
 // Populated only after a student uploads a curriculum. It keeps the exact
 // FTU course codes that produced each recommendation.
 let uploadMatchCodesByPartner = new Map();
+let setReviewSchoolFilter = () => {};
+const seedReviews = [
+  {id:'mannheim-1',name:'Trần Hà My',meta:'K60 · Kinh tế đối ngoại · Fall 2025',school:'University of Mannheim',country:'Germany',region:'Europe',learning:5,housing:4,living:5,likes:27,dislikes:1,text:'Nhịp học khá nhanh nhưng thư viện tuyệt vời, thành phố an toàn và dễ di chuyển. Nên chuẩn bị chỗ ở thật sớm.'},
+  {id:'waseda-1',name:'Lê Hoàng Nam',meta:'K59 · Tài chính quốc tế · Spring 2025',school:'Waseda University',country:'Japan',region:'Asia',learning:5,housing:5,living:5,likes:36,dislikes:0,text:'Đồ ăn quanh trường rất đa dạng. Mình học được nhiều nhất từ các bài thảo luận nhóm với sinh viên quốc tế.'},
+  {id:'hasselt-1',name:'Phạm Bảo Ngọc',meta:'K60 · Quản trị kinh doanh · Fall 2024',school:'Hasselt University',country:'Belgium',region:'Europe',learning:4,housing:4,living:5,likes:19,dislikes:2,text:'Môi trường sống yên bình, người dân thân thiện. Ký túc xá hơi xa thư viện nhưng xe đạp giải quyết được tất cả.'},
+  {id:'yonsei-1',name:'Đỗ Minh Khang',meta:'K61 · Tài chính quốc tế · Spring 2026',school:'Yonsei University Mirae Campus',country:'Korea',region:'Asia',learning:5,housing:4,living:5,likes:31,dislikes:1,text:'Trường có không khí quốc tế, khuôn viên đẹp và dịch vụ hỗ trợ sinh viên trao đổi khá chu đáo.'},
+  {id:'niagara-1',name:'Vũ Khánh Linh',meta:'K60 · Quản trị kinh doanh · Fall 2025',school:'Niagara University',country:'USA',region:'America',learning:4,housing:4,living:5,likes:22,dislikes:3,text:'Giảng viên cởi mở, nhiều hoạt động cộng đồng. Chi phí sinh hoạt cần được lên kế hoạch kỹ từ đầu.'}
+];
+// Rating-only entries are counted but do not create a text review card.
+const seedRatings = [
+  // A written review and its rating are deliberately linked: one student is
+  // counted once in the summary and rendered once in a school review list.
+  ...seedReviews.map(({id,school,learning,housing,living}) => ({id:`rating-${id}`,reviewId:id,school,learning,housing,living})),
+  {id:'rating-waseda-2',school:'Waseda University',learning:5,housing:4,living:5},{id:'rating-waseda-3',school:'Waseda University',learning:5,housing:5,living:4},
+  {id:'rating-yonsei-2',school:'Yonsei University Mirae Campus',learning:4,housing:4,living:5},{id:'rating-yonsei-3',school:'Yonsei University Mirae Campus',learning:5,housing:3,living:4},
+  {id:'rating-mannheim-2',school:'University of Mannheim',learning:5,housing:4,living:4},{id:'rating-hasselt-2',school:'Hasselt University',learning:4,housing:4,living:4},{id:'rating-niagara-2',school:'Niagara University',learning:4,housing:3,living:4}
+];
+const localStore = {
+  read(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; } },
+  write(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
+};
+function allRatings() { return [...seedRatings, ...localStore.read('ftux-ratings')]; }
+function reviewAverage(item) { return (Number(item.learning) + Number(item.housing) + Number(item.living)) / 3; }
+function getRatingSummary(school) {
+  const ratings = allRatings().filter(item => normal(item.school) === normal(school) && ['learning','housing','living'].every(key => Number.isFinite(Number(item[key]))));
+  if (!ratings.length) return null;
+  const averageFor = key => ratings.reduce((sum, item) => sum + Number(item[key]), 0) / ratings.length;
+  const learning = averageFor('learning'), housing = averageFor('housing'), living = averageFor('living');
+  return { count: ratings.length, learning, housing, living, overall: (learning + housing + living) / 3 };
+}
+function stars(value) { return value ? '★'.repeat(Math.round(value)) + '☆'.repeat(5 - Math.round(value)) : '☆☆☆☆☆'; }
 DATA.mappings.forEach(item => {
   if (!matchMap.has(item.schoolId)) matchMap.set(item.schoolId, []);
   matchMap.get(item.schoolId).push(item);
@@ -66,12 +105,13 @@ function partnerCard(partner, small = false, matchCount = null) {
   const count = matchCount ?? score(partner);
   return `<article class="university-card"><div class="card-image" style="background-image:url('${photo(partner)}')"><span class="region-tag">${escapeHtml(partner.region || 'Global')}</span></div><div class="card-body"><p class="card-country">${escapeHtml(partner.country || 'Quốc tế')}</p><h3>${escapeHtml(partner.name)}</h3><div class="card-meta"><span>${partner.slots ? `<b>${escapeHtml(partner.slots)}</b> chỉ tiêu` : 'Đang cập nhật'}</span><span>${count ? `${count} môn quy đổi` : 'Xem chi tiết'}</span></div><button class="details-link" data-partner="${escapeHtml(partner.id)}">Khám phá trường →</button></div></article>`;
 }
-function showPage(id) {
+function showPage(id, { updateHistory = true, partnerId = null, reviewSchool = null } = {}) {
   $$('.page').forEach(page => page.classList.toggle('active', page.id === id));
   $$('.nav-link').forEach(link => link.classList.toggle('active', link.getAttribute('href') === `#${id}`));
+  if (updateHistory) history.pushState({ page: id, partnerId, reviewSchool }, '', `#${id}`);
   window.scrollTo({ top: 0, behavior: 'smooth' }); iconRefresh();
 }
-function showDetail(id) {
+function showDetail(id, updateHistory = true) {
   const partner = DATA.partners.find(p => p.id === id); if (!partner) return;
   const uploadedCodes = uploadMatchCodesByPartner.get(partner.id);
   const isUploadMatch = uploadedCodes?.size > 0;
@@ -87,8 +127,12 @@ function showDetail(id) {
     ? `Chỉ hiển thị <b>${maps.length} học phần trùng khớp</b> với chương trình bạn đã tải lên. Mỗi mã môn FTU chỉ xuất hiện một lần.`
     : 'Đây là các học phần đã có dữ liệu quy đổi trong bảng nguồn. Quy đổi cuối cùng phụ thuộc vào đề cương và phê duyệt ở từng kỳ.';
   const mappingNote = !isUploadMatch && maps.length > 12 ? `<p class="disclaimer">Hiển thị 12 trong tổng số ${maps.length} cặp học phần đã có dữ liệu cho trường này.</p>` : '';
-  $('#detail-content').innerHTML = `<section class="detail-hero" style="--hero-image:url('${photo(partner)}')"><div class="detail-hero-content"><button class="back-link" data-back-catalog><i data-lucide="arrow-left"></i> Quay lại danh sách</button><p class="eyebrow">${escapeHtml(partner.region || 'GLOBAL')} · ${escapeHtml(partner.country || '')}</p><h1>${escapeHtml(partner.name)}</h1><p>${escapeHtml(partner.language || 'Thông tin ngôn ngữ đang cập nhật')}</p></div></section><div class="detail-shell"><div class="detail-stats"><div><span>Chỉ tiêu</span><b>${escapeHtml(partner.slots || '—')} sinh viên</b></div><div><span>${isUploadMatch ? 'Môn trùng khớp CTĐT' : 'Học phần đã đối chiếu'}</span><b>${isUploadMatch ? maps.length : score(partner)} môn</b></div><div><span>Sinh hoạt phí</span><b>${escapeHtml(cost.living)}</b></div><div><span>Đánh giá từ alumni</span><b>4.5 / 5 ★</b></div></div><div class="detail-grid"><article><h2>Thông tin tổng quan</h2><p>${partner.notes ? escapeHtml(partner.notes) : `Đối tác trao đổi tại ${escapeHtml(partner.country || 'quốc gia sở tại')}, nằm trong danh sách mở đăng ký bổ sung kỳ Fall 2026.`}</p><h2>Danh sách môn học tương đương</h2><p>${mappingIntro}</p><table class="mapping-table"><thead><tr><th>MÔN Ở TRƯỜNG ĐỐI TÁC</th><th>HỌC PHẦN QUY ĐỔI TẠI FTU</th></tr></thead><tbody>${rows}</tbody></table>${mappingNote}</article><aside class="side-panel"><h2>Điều kiện ứng tuyển</h2><dl><dt>Yêu cầu GPA / ngoại ngữ</dt><dd>${escapeHtml(partner.requirements || 'Chưa có yêu cầu cụ thể trong dữ liệu mở đăng ký.')}</dd><dt>Ngôn ngữ giảng dạy</dt><dd>${escapeHtml(partner.language || 'Đang cập nhật')}</dd><dt>Học bổng</dt><dd>${escapeHtml(partner.scholarship || 'Chưa công bố')}</dd><dt>Học phần đối tác</dt><dd>${partner.courseUrl ? `<a target="_blank" rel="noopener" href="${escapeHtml(partner.courseUrl)}">Mở catalogue chính thức ↗</a>` : 'Chưa đính kèm đường dẫn'}</dd></dl><h3>Chi phí & lưu trú</h3><dl><dt>Sinh hoạt cơ bản</dt><dd>${escapeHtml(cost.living)}</dd><dt>Nhà ở ước tính</dt><dd>${escapeHtml(cost.housing)}</dd></dl></aside></div></div>`;
-  showPage('detail');
+  $('#detail-content').innerHTML = `<section class="detail-hero" style="--hero-image:url('${photo(partner)}')"><div class="detail-hero-content"><button class="back-link" data-back-catalog><i data-lucide="arrow-left"></i> Quay lại danh sách</button><p class="eyebrow">${escapeHtml(partner.region || 'GLOBAL')} · ${escapeHtml(partner.country || '')}</p><h1>${escapeHtml(partner.name)}</h1><p>${escapeHtml(partner.language || 'Thông tin ngôn ngữ đang cập nhật')}</p></div></section><div class="detail-shell"><div class="detail-stats"><div><span>Chỉ tiêu</span><b>${escapeHtml(partner.slots || '—')} sinh viên</b></div><div><span>${isUploadMatch ? 'Môn trùng khớp CTĐT' : 'Học phần đã đối chiếu'}</span><b>${isUploadMatch ? maps.length : score(partner)} môn</b></div><div><span>Sinh hoạt phí</span><b>${escapeHtml(cost.living)}</b></div><button class="detail-stat-link" type="button" data-open-alumni aria-label="Xem đánh giá từ alumni"><span>Đánh giá từ alumni</span><b>4.5 / 5 ★</b><small>Xem review →</small></button></div><div class="detail-grid"><article><h2>Thông tin tổng quan</h2><p>${partner.notes ? escapeHtml(partner.notes) : `Đối tác trao đổi tại ${escapeHtml(partner.country || 'quốc gia sở tại')}, nằm trong danh sách mở đăng ký bổ sung kỳ Fall 2026.`}</p><h2>Danh sách môn học tương đương</h2><p>${mappingIntro}</p><table class="mapping-table"><thead><tr><th>MÔN Ở TRƯỜNG ĐỐI TÁC</th><th>HỌC PHẦN QUY ĐỔI TẠI FTU</th></tr></thead><tbody>${rows}</tbody></table>${mappingNote}</article><aside class="side-panel"><h2>Điều kiện ứng tuyển</h2><dl><dt>Yêu cầu GPA / ngoại ngữ</dt><dd>${escapeHtml(partner.requirements || 'Chưa có yêu cầu cụ thể trong dữ liệu mở đăng ký.')}</dd><dt>Ngôn ngữ giảng dạy</dt><dd>${escapeHtml(partner.language || 'Đang cập nhật')}</dd><dt>Học bổng</dt><dd>${escapeHtml(partner.scholarship || 'Chưa công bố')}</dd><dt>Học phần đối tác</dt><dd>${partner.courseUrl ? `<a target="_blank" rel="noopener" href="${escapeHtml(partner.courseUrl)}">Mở catalogue chính thức ↗</a>` : 'Chưa đính kèm đường dẫn'}</dd></dl><h3>Chi phí & lưu trú</h3><dl><dt>Sinh hoạt cơ bản</dt><dd>${escapeHtml(cost.living)}</dd><dt>Nhà ở ước tính</dt><dd>${escapeHtml(cost.housing)}</dd></dl></aside></div></div>`;
+  const rating = getRatingSummary(partner.name);
+  const ratingButton = $('.detail-stat-link');
+  ratingButton.querySelector('b').textContent = rating ? `${rating.overall.toFixed(1)} / 5 ★` : 'Chưa có đánh giá';
+  ratingButton.querySelector('small').textContent = rating ? `${rating.count} lượt đánh giá · Xem review →` : 'Hãy là người đầu tiên đánh giá →';
+  showPage('detail', { updateHistory, partnerId: id });
 }
 function renderFeatured() {
   const top = [...DATA.partners].sort((a, b) => score(b) - score(a)).slice(0, 3);
@@ -102,7 +146,11 @@ function filteredPartners() {
   const faculty = $('#faculty-filter').value;
   return DATA.partners.filter(p => {
     const searchablePlace = normal(`${p.name} ${p.country} ${p.region} ${placeAliases[p.country] || ''} ${placeAliases[p.region] || ''}`);
-    return (!query || searchablePlace.includes(query)) && (!country || p.country === country) && (!language || p.language.includes(language)) && (!requirement || p.requirements.toUpperCase().includes(requirement)) && (!faculty || uniqueMappings(p).some(m => m.faculty.includes(faculty)));
+    const selectedFacultyGroups = majorToFaculty[faculty] || [];
+    const isCountryOrRegion = !country || (country.startsWith('region:') ? p.region === country.slice(7) : p.country === country);
+    const meetsLanguageRequirement = !requirement || requirement.split('|').some(certificate => p.requirements.toUpperCase().includes(certificate));
+    const matchesMajor = !faculty || uniqueMappings(p).some(m => selectedFacultyGroups.some(group => normal(m.faculty).includes(normal(group))));
+    return (!query || searchablePlace.includes(query)) && isCountryOrRegion && (!language || p.language.includes(language)) && meetsLanguageRequirement && matchesMajor;
   });
 }
 function renderCatalog() {
@@ -113,8 +161,9 @@ function renderCatalog() {
   iconRefresh();
 }
 function initCatalog() {
-  const countries = [...new Set(DATA.partners.map(p => p.country).filter(Boolean))].sort();
-  $('#country-filter').insertAdjacentHTML('beforeend', countries.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join(''));
+  const countries = ['Belgium','China','Finland','France','Germany','India','Indonesia','Italy','Japan','Korea','Norway','Sweden','Switzerland','Taiwan','The Bahamas','USA'];
+  const regions = [...new Set(DATA.partners.map(p => p.region).filter(Boolean))].sort();
+  $('#country-filter').insertAdjacentHTML('beforeend', `<optgroup label="Châu lục">${regions.map(region => `<option value="region:${region}">${escapeHtml(placeLabels[region] || region)}</option>`).join('')}</optgroup><optgroup label="Quốc gia / vùng lãnh thổ">${countries.map(country => `<option value="${escapeHtml(country)}">${escapeHtml(country)}</option>`).join('')}</optgroup>`);
   ['catalog-search','country-filter','language-filter','requirement-filter','faculty-filter','sort-select'].forEach(id => $(`#${id}`).addEventListener('input', renderCatalog));
   $('#reset-filters').addEventListener('click', () => { ['catalog-search','country-filter','language-filter','requirement-filter','faculty-filter'].forEach(id => $(`#${id}`).value = ''); renderCatalog(); }); renderCatalog();
 }
@@ -161,13 +210,136 @@ function initUpload() {
   zone.addEventListener('drop', e => e.dataTransfer.files[0] && parseCurriculum(e.dataTransfer.files[0]));
 }
 function initReviews() {
-  const reviews = [{name:'Trần Hà My',meta:'K60 · Kinh tế đối ngoại · Fall 2025',school:'University of Mannheim',text:'Nhịp học khá nhanh nhưng thư viện tuyệt vời, thành phố an toàn và dễ di chuyển. Nên chuẩn bị chỗ ở thật sớm.'},{name:'Lê Hoàng Nam',meta:'K59 · Tài chính quốc tế · Spring 2025',school:'Waseda University',text:'Đồ ăn quanh trường rất đa dạng. Mình học được nhiều nhất từ các bài thảo luận nhóm với sinh viên quốc tế.'},{name:'Phạm Bảo Ngọc',meta:'K60 · Quản trị kinh doanh · Fall 2024',school:'Hasselt University',text:'Môi trường sống yên bình, người dân thân thiện. Ký túc xá hơi xa thư viện nhưng xe đạp giải quyết được tất cả.'}];
-  $('#review-list').innerHTML = reviews.map(r => `<article class="review-card"><div class="review-head"><div class="reviewer"><span class="avatar">${r.name.split(' ').slice(-1)[0][0]}</span><div><b>${r.name}</b><small>${r.meta} · ${r.school}</small></div></div><span class="review-stars">★★★★★</span></div><p>“${r.text}”</p></article>`).join('');
-  const dialog = $('#review-dialog'); $$('[data-open-review]').forEach(b => b.addEventListener('click', () => dialog.showModal())); $('[data-close-review]').addEventListener('click', () => dialog.close()); $('#review-form').addEventListener('submit', e => { e.preventDefault(); dialog.close(); e.target.reset(); toast('Gửi review thành công. Cảm ơn bạn đã chia sẻ!'); });
+  const regionSelect = $('#review-region'), countrySelect = $('#review-country');
+  const countries = ['Belgium','China','Finland','France','Germany','India','Indonesia','Italy','Japan','Korea','Norway','Sweden','Switzerland','Taiwan','The Bahamas','USA'];
+  countrySelect.insertAdjacentHTML('beforeend', countries.map(v => `<option value="${v}">${v}</option>`).join(''));
+  const schoolOptions = DATA.partners.map(p => `<option value="${escapeHtml(p.name)}"></option>`).join('');
+  $('#review-school-options').innerHTML = schoolOptions;
+  $('#review-form-school-options').innerHTML = schoolOptions;
+  // Pair ratings created by the earlier version of this page with their text
+  // review once, so existing browser-only data is retained after the update.
+  const legacyRatings = localStore.read('ftux-ratings');
+  const legacyReviews = localStore.read('ftux-reviews');
+  const pairedReviewIds = new Set(legacyRatings.map(item => item.reviewId).filter(Boolean));
+  let migrated = false;
+  legacyRatings.forEach(rating => {
+    if (rating.reviewId) return;
+    const match = legacyReviews.find(review => !pairedReviewIds.has(review.id) && normal(review.school) === normal(rating.school) && ['learning','housing','living'].every(key => Number(review[key]) === Number(rating[key])));
+    if (match) { rating.reviewId = match.id; pairedReviewIds.add(match.id); migrated = true; }
+  });
+  if (migrated) localStore.write('ftux-ratings', legacyRatings);
+  let showAll = false;
+  const interactionKey = 'ftux-review-interactions';
+  const interactions = () => localStore.read(interactionKey);
+  let visibleEntries = new Map();
+  function selectedVote(id) { return interactions().find(item => item.id === id)?.vote || null; }
+  function interactionTotal(item) {
+    return Number(item.likes || 0) + Number(item.dislikes || 0) + (selectedVote(item.id) ? 1 : 0);
+  }
+  function summaryMarkup(school) {
+    const summary = getRatingSummary(school);
+    if (!summary) return `<section class="school-rating-summary empty-rating"><div class="score-big"><b>—</b><span>trên 5</span><div class="stars">☆☆☆☆☆</div><small>Chưa có lượt đánh giá</small></div><div class="score-bars empty-bars"><div><span>Trải nghiệm học</span><em>Chưa có lượt đánh giá</em></div><div><span>Ký túc xá</span><em>Chưa có lượt đánh giá</em></div><div><span>Môi trường sống</span><em>Chưa có lượt đánh giá</em></div></div></section>`;
+    const line = (label, value) => `<div><span>${label}</span><b style="--score:${value * 20}%"></b><em>${value.toFixed(1)}</em></div>`;
+    return `<section class="school-rating-summary"><div class="score-big"><b>${summary.overall.toFixed(1)}</b><span>trên 5</span><div class="stars">${stars(summary.overall)}</div><small>Dựa trên ${summary.count} lượt đánh giá</small></div><div class="score-bars">${line('Trải nghiệm học',summary.learning)}${line('Ký túc xá',summary.housing)}${line('Môi trường sống',summary.living)}</div></section>`;
+  }
+  function reviewCard(review) {
+    const choice = selectedVote(review.id);
+    const displayedLikes = Number(review.likes || 0) + (choice === 'like' ? 1 : 0);
+    const displayedDislikes = Number(review.dislikes || 0) + (choice === 'dislike' ? 1 : 0);
+    const average = reviewAverage(review).toFixed(1);
+    const initial = review.name.split(' ').slice(-1)[0]?.[0] || 'S';
+    return `<article class="review-card"><div class="review-head"><div class="reviewer"><span class="avatar">${initial}</span><div><b>${escapeHtml(review.name)}</b><small>${escapeHtml(review.meta)} · ${escapeHtml(review.school)} · ${escapeHtml(review.country)}</small></div></div><button class="review-stars review-score-button" type="button" data-rating-details="${review.id}" aria-label="Xem chi tiết điểm ${average} trên 5">${stars(reviewAverage(review))} <small>${average}</small><span>Chi tiết</span></button></div>${review.text ? `<p>“${escapeHtml(review.text)}”</p>` : ''}<div class="review-actions"><button class="${choice === 'like' ? 'selected' : ''}" aria-pressed="${choice === 'like'}" type="button" data-vote="like" data-review-id="${review.id}">👍 Hữu ích <b>${displayedLikes}</b></button><button class="${choice === 'dislike' ? 'selected' : ''}" aria-pressed="${choice === 'dislike'}" type="button" data-vote="dislike" data-review-id="${review.id}">👎 <b>${displayedDislikes}</b></button></div></article>`;
+  }
+  function ratingEntry(rating, partner, reviews) {
+    const linkedReview = reviews.find(review => review.id === rating.reviewId);
+    if (linkedReview) return linkedReview;
+    return { id: rating.id, name:'Sinh viên ẩn danh', meta:'Đã chấm điểm · Không để lại chia sẻ', school:rating.school, country:partner?.country || '', region:partner?.region || '', learning:rating.learning, housing:rating.housing, living:rating.living, likes:0, dislikes:0, text:'' };
+  }
+  function renderReviews() {
+    const q = normal($('#review-search').value), region = regionSelect.value, country = countrySelect.value, order = $('#review-rating').value;
+    const reviews = [...seedReviews, ...localStore.read('ftux-reviews')];
+    const filtered = reviews.filter(r => (!q || normal(`${r.school} ${r.country} ${r.region} ${placeAliases[r.country] || ''} ${placeAliases[r.region] || ''}`).includes(q)) && (!region || r.region === region) && (!country || r.country === country));
+    const exactSchool = DATA.partners.find(p => normal(p.name) === q)?.name;
+    $('.school-rating-summary')?.remove();
+    if (exactSchool) $('.review-featured').insertAdjacentHTML('afterbegin', summaryMarkup(exactSchool));
+    const partner = exactSchool ? DATA.partners.find(p => p.name === exactSchool) : null;
+    // Ratings are the one source of truth on a school page. A written rating
+    // is linked to its text review, preventing one person appearing twice.
+    const schoolEntries = exactSchool ? allRatings().filter(item => normal(item.school) === normal(exactSchool) && ['learning','housing','living'].every(key => Number.isFinite(Number(item[key])))).map(item => ratingEntry(item, partner, reviews)) : [];
+    let entries = exactSchool ? schoolEntries : filtered;
+    entries = [...entries].sort((a,b) => {
+      const interactionDifference = interactionTotal(b) - interactionTotal(a);
+      if (interactionDifference) return interactionDifference;
+      return order === 'rating-asc' ? reviewAverage(a) - reviewAverage(b) : reviewAverage(b) - reviewAverage(a);
+    });
+    const hasMore = entries.length > 5;
+    const displayed = showAll ? entries : entries.slice(0, 5);
+    visibleEntries = new Map(entries.map(item => [item.id, item]));
+    $('#review-list').innerHTML = displayed.length ? displayed.map(reviewCard).join('') : '<div class="empty-state">Chưa tìm thấy review phù hợp với bộ lọc này.</div>';
+    $('#show-all-reviews').hidden = !hasMore || showAll;
+  }
+  setReviewSchoolFilter = school => { $('#review-search').value = school || ''; renderReviews(); };
+  ['review-search','review-region','review-country','review-rating'].forEach(id => $(`#${id}`).addEventListener('input', renderReviews));
+  $('#show-all-reviews').addEventListener('click', () => { showAll = true; renderReviews(); });
+  $('#review-list').addEventListener('click', event => {
+    const details = event.target.closest('[data-rating-details]');
+    if (details) {
+      const review = visibleEntries.get(details.dataset.ratingDetails); if (!review) return;
+      $('#rating-detail-content').innerHTML = `<p class="rating-person">${escapeHtml(review.name)} · <b>${reviewAverage(review).toFixed(1)} / 5</b></p><div class="rating-detail-lines"><div><span>Trải nghiệm học</span><b>${stars(review.learning)} ${Number(review.learning).toFixed(1)}</b></div><div><span>Ký túc xá</span><b>${stars(review.housing)} ${Number(review.housing).toFixed(1)}</b></div><div><span>Môi trường sống</span><b>${stars(review.living)} ${Number(review.living).toFixed(1)}</b></div></div>`;
+      $('#rating-detail-dialog').showModal(); return;
+    }
+    const button = event.target.closest('[data-vote]'); if (!button) return;
+    const saved = interactions(); const id = button.dataset.reviewId; const requested = button.dataset.vote;
+    const item = saved.find(entry => entry.id === id);
+    if (item) item.vote = item.vote === requested ? null : requested;
+    else saved.push({ id, vote: requested });
+    localStore.write(interactionKey, saved); renderReviews();
+  });
+  renderReviews();
+  const dialog = $('#review-dialog');
+  $$('[data-open-review]').forEach(button => button.addEventListener('click', () => dialog.showModal()));
+  $('[data-close-review]').addEventListener('click', () => dialog.close());
+  $('#review-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const school = compact(form.get('school')); const learning = Number(form.get('learning')); const housing = Number(form.get('housing')); const living = Number(form.get('living')); const comment = compact(form.get('comment'));
+    const partner = DATA.partners.find(p => normal(p.name) === normal(school));
+    const reviewId = comment ? `local-review-${Date.now()}` : null;
+    const savedRatings = localStore.read('ftux-ratings'); savedRatings.push({ id:`local-rating-${Date.now()}`, reviewId, school, learning, housing, living }); localStore.write('ftux-ratings', savedRatings);
+    if (comment) {
+      const savedReviews = localStore.read('ftux-reviews');
+      savedReviews.push({ id: reviewId, name: compact(form.get('reviewer')), meta: 'Đánh giá mới', school, country: partner?.country || 'Đang cập nhật', region: partner?.region || 'Global', learning, housing, living, likes:0, dislikes:0, text: comment });
+      localStore.write('ftux-reviews', savedReviews);
+    }
+    dialog.close(); event.currentTarget.reset(); setReviewSchoolFilter(school);
+    toast(comment ? 'Đã gửi đánh giá và chia sẻ của bạn!' : 'Đã gửi đánh giá của bạn!');
+  });
+  $('[data-close-rating-detail]').addEventListener('click', () => $('#rating-detail-dialog').close());
 }
-document.addEventListener('click', event => { const detailButton = event.target.closest('[data-partner]'); if (detailButton) showDetail(detailButton.dataset.partner); if (event.target.closest('[data-back-catalog]')) showPage('universities'); });
+document.addEventListener('click', event => {
+  const detailButton = event.target.closest('[data-partner]'); if (detailButton) showDetail(detailButton.dataset.partner);
+  if (event.target.closest('[data-back-catalog]')) history.back();
+  if (event.target.closest('[data-open-alumni]')) {
+    const school = $('#detail h1')?.textContent?.trim() || '';
+    setReviewSchoolFilter(school);
+    showPage('reviews', { reviewSchool: school });
+  }
+});
 $$('.nav-link').forEach(link => link.addEventListener('click', event => { event.preventDefault(); showPage(link.getAttribute('href').slice(1)); }));
+$$('.text-link[href="#universities"]').forEach(link => link.addEventListener('click', event => { event.preventDefault(); showPage('universities'); renderCatalog(); }));
 $('#hero-search').addEventListener('submit', event => { event.preventDefault(); $('#catalog-search').value = $('#search-input').value; showPage('universities'); renderCatalog(); });
 $$('[data-scroll-upload]').forEach(button => button.addEventListener('click', () => { showPage('home'); setTimeout(() => $('#upload-tool').scrollIntoView({behavior:'smooth'}), 120); }));
 $('#school-count').textContent = DATA.partners.length; $('#mapping-count').textContent = `${(DATA.mappings.length / 1000).toFixed(1)}k+`;
-renderFeatured(); initCatalog(); initUpload(); initReviews(); iconRefresh();
+window.addEventListener('popstate', event => {
+  const state = event.state;
+  if (state?.page === 'detail' && state.partnerId) showDetail(state.partnerId, false);
+  else {
+    if (state?.page === 'reviews') setReviewSchoolFilter(state.reviewSchool || '');
+    showPage(state?.page || 'home', { updateHistory: false });
+  }
+});
+renderFeatured(); initCatalog(); initUpload(); initReviews();
+const initialPage = location.hash.slice(1);
+if (initialPage && ['home','universities','reviews'].includes(initialPage)) showPage(initialPage, { updateHistory: false });
+history.replaceState({ page: initialPage || 'home', partnerId: null }, '', `#${initialPage || 'home'}`);
+iconRefresh();
