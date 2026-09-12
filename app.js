@@ -14,6 +14,18 @@ const images = {
   Spain: 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?auto=format&fit=crop&w=900&q=80',
   default: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80'
 };
+// The source spreadsheets use English place names, while the interface invites
+// students to search in Vietnamese. These aliases make both forms searchable.
+const placeAliases = {
+  Asia: 'châu á chau a asia', Europe: 'châu âu chau au europe', America: 'châu mỹ chau my america',
+  Japan: 'nhật bản nhat ban japan', Korea: 'hàn quốc han quoc korea south korea',
+  China: 'trung quốc trung quoc china', USA: 'mỹ hoa kỳ hoa ky united states usa',
+  'The Bahamas': 'bahamas ba ha ma', Germany: 'đức duc germany', France: 'pháp phap france',
+  Belgium: 'bỉ bi belgium', Finland: 'phần lan phan lan finland', Norway: 'na uy norway',
+  Sweden: 'thụy điển thuy dien sweden', Switzerland: 'thụy sĩ thuy si switzerland',
+  Spain: 'tây ban nha tay ban nha spain', Italy: 'ý y italy', India: 'ấn độ an do india',
+  Indonesia: 'indonesia in đô nê xi a', Taiwan: 'đài loan dai loan taiwan'
+};
 const matchMap = new Map();
 // Populated only after a student uploads a curriculum. It keeps the exact
 // FTU course codes that produced each recommendation.
@@ -83,12 +95,15 @@ function renderFeatured() {
   $('#featured-grid').innerHTML = top.map(p => partnerCard(p)).join('');
 }
 function filteredPartners() {
-  const query = $('#catalog-search').value.trim().toLowerCase();
+  const query = normal($('#catalog-search').value.trim());
   const country = $('#country-filter').value;
   const language = $('#language-filter').value;
   const requirement = $('#requirement-filter').value;
   const faculty = $('#faculty-filter').value;
-  return DATA.partners.filter(p => (!query || `${p.name} ${p.country} ${p.region}`.toLowerCase().includes(query)) && (!country || p.country === country) && (!language || p.language.includes(language)) && (!requirement || p.requirements.toUpperCase().includes(requirement)) && (!faculty || uniqueMappings(p).some(m => m.faculty.includes(faculty))));
+  return DATA.partners.filter(p => {
+    const searchablePlace = normal(`${p.name} ${p.country} ${p.region} ${placeAliases[p.country] || ''} ${placeAliases[p.region] || ''}`);
+    return (!query || searchablePlace.includes(query)) && (!country || p.country === country) && (!language || p.language.includes(language)) && (!requirement || p.requirements.toUpperCase().includes(requirement)) && (!faculty || uniqueMappings(p).some(m => m.faculty.includes(faculty)));
+  });
 }
 function renderCatalog() {
   const select = $('#sort-select').value;
