@@ -27,6 +27,10 @@ const placeAliases = {
   Indonesia: 'indonesia in đô nê xi a', Taiwan: 'đài loan dai loan taiwan'
 };
 const placeLabels = { Asia: 'Châu Á', Europe: 'Châu Âu', America: 'Châu Mỹ', Japan: 'Nhật Bản', Korea: 'Hàn Quốc', China: 'Trung Quốc', USA: 'Mỹ', 'The Bahamas': 'Bahamas', Germany: 'Đức', France: 'Pháp', Belgium: 'Bỉ', Finland: 'Phần Lan', Norway: 'Na Uy', Sweden: 'Thụy Điển', Switzerland: 'Thụy Sĩ', Spain: 'Tây Ban Nha', Italy: 'Ý', India: 'Ấn Độ', Indonesia: 'Indonesia', Taiwan: 'Đài Loan' };
+// Values match the source dataset; labels are the Vietnamese names shown to users.
+const countryChoices = [
+  ['Norway','Na Uy'],['Sweden','Thụy Điển'],['Finland','Phần Lan'],['Germany','Đức'],['France','Pháp'],['Belgium','Bỉ'],['Switzerland','Thụy Sĩ'],['Spain','Tây Ban Nha'],['Italy','Ý'],['Canada','Canada'],['USA','Mỹ'],['Australia','Úc'],['Taiwan','Đài Loan'],['Korea','Hàn Quốc'],['Russia','Nga'],['Japan','Nhật Bản'],['China','Trung Quốc']
+].map(([value,label]) => ({value,label})).sort((a,b) => a.label.localeCompare(b.label, 'vi'));
 // The source exchanges classify equivalencies by FTU faculty, not by major.
 const majorToFaculty = {
   economics:['KTQT','KT&KDQT'],logistics:['KT&KDQT'],'international-economics':['KTQT','KT&KDQT'],'digital-economics':['KTQT','CN&KHDL','KHDL'],'international-business':['KT&KDQT'],'commercial-business':['KT&KDQT'],
@@ -54,12 +58,17 @@ const seedRatings = [
   {id:'rating-waseda-2',school:'Waseda University',learning:5,housing:4,living:5},{id:'rating-waseda-3',school:'Waseda University',learning:5,housing:5,living:4},
   {id:'rating-yonsei-2',school:'Yonsei University Mirae Campus',learning:4,housing:4,living:5},{id:'rating-yonsei-3',school:'Yonsei University Mirae Campus',learning:5,housing:3,living:4},
   {id:'rating-mannheim-2',school:'University of Mannheim',learning:5,housing:4,living:4},{id:'rating-hasselt-2',school:'Hasselt University',learning:4,housing:4,living:4},{id:'rating-niagara-2',school:'Niagara University',learning:4,housing:3,living:4}
+  ,{id:'rating-waseda-4',school:'Waseda University',learning:5,housing:4,living:5},{id:'rating-waseda-5',school:'Waseda University',learning:4,housing:4,living:5},{id:'rating-waseda-6',school:'Waseda University',learning:5,housing:5,living:5},{id:'rating-waseda-7',school:'Waseda University',learning:4,housing:5,living:4},{id:'rating-waseda-8',school:'Waseda University',learning:5,housing:4,living:4},{id:'rating-waseda-9',school:'Waseda University',learning:4,housing:4,living:4}
+  ,{id:'rating-yonsei-4',school:'Yonsei University Mirae Campus',learning:5,housing:4,living:4},{id:'rating-yonsei-5',school:'Yonsei University Mirae Campus',learning:4,housing:4,living:4},{id:'rating-yonsei-6',school:'Yonsei University Mirae Campus',learning:5,housing:5,living:5},{id:'rating-yonsei-7',school:'Yonsei University Mirae Campus',learning:4,housing:3,living:5}
 ];
 const localStore = {
   read(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; } },
   write(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
 };
-function allRatings() { return [...seedRatings, ...localStore.read('ftux-ratings')]; }
+function partnerByName(name) { return DATA.partners.find(partner => normal(partner.name) === normal(name)); }
+// Reviews are only valid for confirmed FTU partner schools. This also hides
+// legacy sample/browser data that may have been entered for another school.
+function allRatings() { return [...seedRatings, ...localStore.read('ftux-ratings')].filter(item => Boolean(partnerByName(item.school))); }
 function reviewAverage(item) { return (Number(item.learning) + Number(item.housing) + Number(item.living)) / 3; }
 function getRatingSummary(school) {
   const ratings = allRatings().filter(item => normal(item.school) === normal(school) && ['learning','housing','living'].every(key => Number.isFinite(Number(item[key]))));
@@ -121,13 +130,22 @@ function showDetail(id, updateHistory = true) {
     ? oneMappingPerFtuCourse(uniqueMappings(partner).filter(m => uploadedCodes.has(m.ftuCode.toUpperCase())))
     : uniqueMappings(partner);
   const cost = DATA.costs[partner.country] || { living: 'Đang cập nhật theo khu vực', housing: 'Tùy loại hình lưu trú' };
-  const displayedMaps = isUploadMatch ? maps : maps.slice(0, 12);
-  const rows = displayedMaps.map(m => `<tr><td><b>${escapeHtml(m.partnerCourse)}</b>${m.partnerCode ? `<br><code>${escapeHtml(m.partnerCode)}</code>` : ''}</td><td><b>${escapeHtml(m.ftuCourse)}</b><br><code>${escapeHtml(m.ftuCode)}</code></td></tr>`).join('') || '<tr><td colspan="2">Không có học phần nào trong chương trình bạn tải lên khớp với dữ liệu quy đổi của trường này.</td></tr>';
+  const grouped = new Map();
+  maps.forEach(mapping => {
+    const key = normal(mapping.ftuCourse);
+    if (!grouped.has(key)) grouped.set(key, { ftuCourse:mapping.ftuCourse, ftuCodes:new Set(), partnerCourses:[] });
+    const group = grouped.get(key); group.ftuCodes.add(mapping.ftuCode);
+    if (!group.partnerCourses.some(item => item.course === mapping.partnerCourse && item.code === mapping.partnerCode)) group.partnerCourses.push({course:mapping.partnerCourse, code:mapping.partnerCode});
+  });
+  const groups = [...grouped.values()];
+  const previewCount = isUploadMatch ? 5 : 10;
+  const rowFor = (group, hidden = false) => `<tr${hidden ? ' class="mapping-extra" hidden' : ''}><td>${group.partnerCourses.map(item => `<b>${escapeHtml(item.course)}</b>${item.code ? `<br><code>${escapeHtml(item.code)}</code>` : ''}`).join('<hr>')}</td><td><b>${escapeHtml(group.ftuCourse)}</b><br><code>${[...group.ftuCodes].map(escapeHtml).join(' / ')}</code></td></tr>`;
+  const rows = groups.length ? groups.map((group, index) => rowFor(group, index >= previewCount)).join('') : '<tr><td colspan="2">Chưa có thông tin về các học phần tương đương của trường này.</td></tr>';
   const mappingIntro = isUploadMatch
-    ? `Chỉ hiển thị <b>${maps.length} học phần trùng khớp</b> với chương trình bạn đã tải lên. Mỗi mã môn FTU chỉ xuất hiện một lần.`
-    : 'Đây là các học phần đã có dữ liệu quy đổi trong bảng nguồn. Quy đổi cuối cùng phụ thuộc vào đề cương và phê duyệt ở từng kỳ.';
-  const mappingNote = !isUploadMatch && maps.length > 12 ? `<p class="disclaimer">Hiển thị 12 trong tổng số ${maps.length} cặp học phần đã có dữ liệu cho trường này.</p>` : '';
-  $('#detail-content').innerHTML = `<section class="detail-hero" style="--hero-image:url('${photo(partner)}')"><div class="detail-hero-content"><button class="back-link" data-back-catalog><i data-lucide="arrow-left"></i> Quay lại danh sách</button><p class="eyebrow">${escapeHtml(partner.region || 'GLOBAL')} · ${escapeHtml(partner.country || '')}</p><h1>${escapeHtml(partner.name)}</h1><p>${escapeHtml(partner.language || 'Thông tin ngôn ngữ đang cập nhật')}</p></div></section><div class="detail-shell"><div class="detail-stats"><div><span>Chỉ tiêu</span><b>${escapeHtml(partner.slots || '—')} sinh viên</b></div><div><span>${isUploadMatch ? 'Môn trùng khớp CTĐT' : 'Học phần đã đối chiếu'}</span><b>${isUploadMatch ? maps.length : score(partner)} môn</b></div><div><span>Sinh hoạt phí</span><b>${escapeHtml(cost.living)}</b></div><button class="detail-stat-link" type="button" data-open-alumni aria-label="Xem đánh giá từ alumni"><span>Đánh giá từ alumni</span><b>4.5 / 5 ★</b><small>Xem review →</small></button></div><div class="detail-grid"><article><h2>Thông tin tổng quan</h2><p>${partner.notes ? escapeHtml(partner.notes) : `Đối tác trao đổi tại ${escapeHtml(partner.country || 'quốc gia sở tại')}, nằm trong danh sách mở đăng ký bổ sung kỳ Fall 2026.`}</p><h2>Danh sách môn học tương đương</h2><p>${mappingIntro}</p><table class="mapping-table"><thead><tr><th>MÔN Ở TRƯỜNG ĐỐI TÁC</th><th>HỌC PHẦN QUY ĐỔI TẠI FTU</th></tr></thead><tbody>${rows}</tbody></table>${mappingNote}</article><aside class="side-panel"><h2>Điều kiện ứng tuyển</h2><dl><dt>Yêu cầu GPA / ngoại ngữ</dt><dd>${escapeHtml(partner.requirements || 'Chưa có yêu cầu cụ thể trong dữ liệu mở đăng ký.')}</dd><dt>Ngôn ngữ giảng dạy</dt><dd>${escapeHtml(partner.language || 'Đang cập nhật')}</dd><dt>Học bổng</dt><dd>${escapeHtml(partner.scholarship || 'Chưa công bố')}</dd><dt>Học phần đối tác</dt><dd>${partner.courseUrl ? `<a target="_blank" rel="noopener" href="${escapeHtml(partner.courseUrl)}">Mở catalogue chính thức ↗</a>` : 'Chưa đính kèm đường dẫn'}</dd></dl><h3>Chi phí & lưu trú</h3><dl><dt>Sinh hoạt cơ bản</dt><dd>${escapeHtml(cost.living)}</dd><dt>Nhà ở ước tính</dt><dd>${escapeHtml(cost.housing)}</dd></dl></aside></div></div>`;
+    ? `Đây là <b>${groups.length} học phần trùng khớp</b> với chương trình bạn đã tải lên. Bạn đang xem ${Math.min(previewCount, groups.length)} môn đầu tiên.`
+    : `Đây là danh sách các học phần quy đổi tại ${escapeHtml(partner.name)}. Quy đổi cuối cùng phụ thuộc vào đề cương và phê duyệt ở từng kỳ.`;
+  const expandMappings = groups.length > previewCount ? `<button class="show-all-mappings" type="button" data-expand-mappings data-default-label="Hiển thị tất cả ${groups.length} môn">Hiển thị tất cả ${groups.length} môn</button>` : '';
+  $('#detail-content').innerHTML = `<section class="detail-hero" style="--hero-image:url('${photo(partner)}')"><div class="detail-hero-content"><button class="back-link" data-back-catalog><i data-lucide="arrow-left"></i> Quay lại danh sách</button><p class="eyebrow">${escapeHtml(partner.region || 'GLOBAL')} · ${escapeHtml(partner.country || '')}</p><h1>${escapeHtml(partner.name)}</h1><p>${escapeHtml(partner.language || 'Thông tin ngôn ngữ đang cập nhật')}</p></div></section><div class="detail-shell"><div class="detail-stats"><div><span>Chỉ tiêu</span><b>${escapeHtml(partner.slots || '—')} sinh viên</b></div><div><span>${isUploadMatch ? 'Môn trùng khớp CTĐT' : 'Học phần đã đối chiếu'}</span><b>${isUploadMatch ? groups.length : score(partner)} môn</b></div><div><span>Sinh hoạt phí</span><b>${escapeHtml(cost.living)}</b></div><button class="detail-stat-link" type="button" data-open-alumni aria-label="Xem đánh giá từ alumni"><span>Đánh giá từ alumni</span><b>4.5 / 5 ★</b><small>Xem review →</small></button></div><div class="detail-grid"><article><h2>Thông tin tổng quan</h2><p>${partner.notes ? escapeHtml(partner.notes) : `Đối tác trao đổi tại ${escapeHtml(partner.country || 'quốc gia sở tại')}, nằm trong danh sách mở đăng ký bổ sung kỳ Fall 2026.`}</p><h2>Danh sách môn học tương đương</h2><p>${mappingIntro}</p><table class="mapping-table"><thead><tr><th>MÔN Ở TRƯỜNG ĐỐI TÁC</th><th>HỌC PHẦN QUY ĐỔI TẠI FTU</th></tr></thead><tbody>${rows}</tbody></table>${expandMappings}</article><aside class="side-panel"><h2>Điều kiện ứng tuyển</h2><dl><dt>Yêu cầu GPA / ngoại ngữ</dt><dd>${escapeHtml(partner.requirements || 'Chưa có yêu cầu cụ thể trong dữ liệu mở đăng ký.')}</dd><dt>Ngôn ngữ giảng dạy</dt><dd>${escapeHtml(partner.language || 'Đang cập nhật')}</dd><dt>Học bổng</dt><dd>${escapeHtml(partner.scholarship || 'Chưa công bố')}</dd><dt>Học phần đối tác</dt><dd>${partner.courseUrl ? `<a target="_blank" rel="noopener" href="${escapeHtml(partner.courseUrl)}">Mở catalogue chính thức ↗</a>` : 'Chưa đính kèm đường dẫn'}</dd></dl><h3>Chi phí & lưu trú</h3><dl><dt>Sinh hoạt cơ bản</dt><dd>${escapeHtml(cost.living)}</dd><dt>Nhà ở ước tính</dt><dd>${escapeHtml(cost.housing)}</dd></dl></aside></div></div>`;
   const rating = getRatingSummary(partner.name);
   const ratingButton = $('.detail-stat-link');
   ratingButton.querySelector('b').textContent = rating ? `${rating.overall.toFixed(1)} / 5 ★` : 'Chưa có đánh giá';
@@ -161,9 +179,13 @@ function renderCatalog() {
   iconRefresh();
 }
 function initCatalog() {
-  const countries = ['Belgium','China','Finland','France','Germany','India','Indonesia','Italy','Japan','Korea','Norway','Sweden','Switzerland','Taiwan','The Bahamas','USA'];
   const regions = [...new Set(DATA.partners.map(p => p.region).filter(Boolean))].sort();
-  $('#country-filter').insertAdjacentHTML('beforeend', `<optgroup label="Châu lục">${regions.map(region => `<option value="region:${region}">${escapeHtml(placeLabels[region] || region)}</option>`).join('')}</optgroup><optgroup label="Quốc gia / vùng lãnh thổ">${countries.map(country => `<option value="${escapeHtml(country)}">${escapeHtml(country)}</option>`).join('')}</optgroup>`);
+  $('#country-filter').insertAdjacentHTML('beforeend', `<optgroup label="Châu lục">${regions.map(region => `<option value="region:${region}">${escapeHtml(placeLabels[region] || region)}</option>`).join('')}</optgroup><optgroup label="Quốc gia / vùng lãnh thổ">${countryChoices.map(country => `<option value="${escapeHtml(country.value)}">${escapeHtml(country.label)}</option>`).join('')}</optgroup>`);
+  const schoolOptions = DATA.partners.map(partner => `<option value="${escapeHtml(partner.name)}"></option>`).join('');
+  $('#hero-school-options').innerHTML = schoolOptions;
+  $('#catalog-search').setAttribute('list', 'catalog-school-options');
+  $('#catalog-search').insertAdjacentHTML('afterend', '<datalist id="catalog-school-options"></datalist>');
+  $('#catalog-school-options').innerHTML = schoolOptions;
   ['catalog-search','country-filter','language-filter','requirement-filter','faculty-filter','sort-select'].forEach(id => $(`#${id}`).addEventListener('input', renderCatalog));
   $('#reset-filters').addEventListener('click', () => { ['catalog-search','country-filter','language-filter','requirement-filter','faculty-filter'].forEach(id => $(`#${id}`).value = ''); renderCatalog(); }); renderCatalog();
 }
@@ -211,8 +233,7 @@ function initUpload() {
 }
 function initReviews() {
   const regionSelect = $('#review-region'), countrySelect = $('#review-country');
-  const countries = ['Belgium','China','Finland','France','Germany','India','Indonesia','Italy','Japan','Korea','Norway','Sweden','Switzerland','Taiwan','The Bahamas','USA'];
-  countrySelect.insertAdjacentHTML('beforeend', countries.map(v => `<option value="${v}">${v}</option>`).join(''));
+  countrySelect.insertAdjacentHTML('beforeend', countryChoices.map(country => `<option value="${escapeHtml(country.value)}">${escapeHtml(country.label)}</option>`).join(''));
   const schoolOptions = DATA.partners.map(p => `<option value="${escapeHtml(p.name)}"></option>`).join('');
   $('#review-school-options').innerHTML = schoolOptions;
   $('#review-form-school-options').innerHTML = schoolOptions;
@@ -248,7 +269,9 @@ function initReviews() {
     const displayedDislikes = Number(review.dislikes || 0) + (choice === 'dislike' ? 1 : 0);
     const average = reviewAverage(review).toFixed(1);
     const initial = review.name.split(' ').slice(-1)[0]?.[0] || 'S';
-    return `<article class="review-card"><div class="review-head"><div class="reviewer"><span class="avatar">${initial}</span><div><b>${escapeHtml(review.name)}</b><small>${escapeHtml(review.meta)} · ${escapeHtml(review.school)} · ${escapeHtml(review.country)}</small></div></div><button class="review-stars review-score-button" type="button" data-rating-details="${review.id}" aria-label="Xem chi tiết điểm ${average} trên 5">${stars(reviewAverage(review))} <small>${average}</small><span>Chi tiết</span></button></div>${review.text ? `<p>“${escapeHtml(review.text)}”</p>` : ''}<div class="review-actions"><button class="${choice === 'like' ? 'selected' : ''}" aria-pressed="${choice === 'like'}" type="button" data-vote="like" data-review-id="${review.id}">👍 Hữu ích <b>${displayedLikes}</b></button><button class="${choice === 'dislike' ? 'selected' : ''}" aria-pressed="${choice === 'dislike'}" type="button" data-vote="dislike" data-review-id="${review.id}">👎 <b>${displayedDislikes}</b></button></div></article>`;
+    const schoolLink = DATA.partners.find(partner => normal(partner.name) === normal(review.school));
+    const schoolText = schoolLink ? `<button type="button" class="review-school-link" data-review-school="${escapeHtml(schoolLink.id)}">${escapeHtml(review.school)}</button>` : escapeHtml(review.school);
+    return `<article class="review-card"><div class="review-head"><div class="reviewer"><span class="avatar">${initial}</span><div><b>${escapeHtml(review.name)}</b><small>${escapeHtml(review.meta)} · ${schoolText} · ${escapeHtml(review.country)}</small></div></div><button class="review-stars review-score-button" type="button" data-rating-details="${review.id}" aria-label="Xem chi tiết điểm ${average} trên 5">${stars(reviewAverage(review))} <small>${average}</small><span>Chi tiết</span></button></div>${review.text ? `<p>“${escapeHtml(review.text)}”</p>` : ''}<div class="review-actions"><button class="${choice === 'like' ? 'selected' : ''}" aria-pressed="${choice === 'like'}" type="button" data-vote="like" data-review-id="${review.id}">👍 Hữu ích <b>${displayedLikes}</b></button><button class="${choice === 'dislike' ? 'selected' : ''}" aria-pressed="${choice === 'dislike'}" type="button" data-vote="dislike" data-review-id="${review.id}">👎 <b>${displayedDislikes}</b></button></div></article>`;
   }
   function ratingEntry(rating, partner, reviews) {
     const linkedReview = reviews.find(review => review.id === rating.reviewId);
@@ -257,16 +280,16 @@ function initReviews() {
   }
   function renderReviews() {
     const q = normal($('#review-search').value), region = regionSelect.value, country = countrySelect.value, order = $('#review-rating').value;
-    const reviews = [...seedReviews, ...localStore.read('ftux-reviews')];
-    const filtered = reviews.filter(r => (!q || normal(`${r.school} ${r.country} ${r.region} ${placeAliases[r.country] || ''} ${placeAliases[r.region] || ''}`).includes(q)) && (!region || r.region === region) && (!country || r.country === country));
+    const reviews = [...seedReviews, ...localStore.read('ftux-reviews')].filter(review => Boolean(partnerByName(review.school)));
     const exactSchool = DATA.partners.find(p => normal(p.name) === q)?.name;
     $('.school-rating-summary')?.remove();
     if (exactSchool) $('.review-featured').insertAdjacentHTML('afterbegin', summaryMarkup(exactSchool));
-    const partner = exactSchool ? DATA.partners.find(p => p.name === exactSchool) : null;
-    // Ratings are the one source of truth on a school page. A written rating
-    // is linked to its text review, preventing one person appearing twice.
-    const schoolEntries = exactSchool ? allRatings().filter(item => normal(item.school) === normal(exactSchool) && ['learning','housing','living'].every(key => Number.isFinite(Number(item[key])))).map(item => ratingEntry(item, partner, reviews)) : [];
-    let entries = exactSchool ? schoolEntries : filtered;
+    // Ratings are the source of truth both for the main page and school pages.
+    // This makes “Hiện tất cả” useful even for rating-only student feedback.
+    let entries = allRatings().filter(item => ['learning','housing','living'].every(key => Number.isFinite(Number(item[key])))).map(item => {
+      const partner = partnerByName(item.school);
+      return ratingEntry(item, partner, reviews);
+    }).filter(item => (!q || normal(`${item.school} ${item.country} ${item.region} ${placeAliases[item.country] || ''} ${placeAliases[item.region] || ''}`).includes(q)) && (!region || item.region === region) && (!country || item.country === country));
     entries = [...entries].sort((a,b) => {
       const interactionDifference = interactionTotal(b) - interactionTotal(a);
       if (interactionDifference) return interactionDifference;
@@ -276,12 +299,16 @@ function initReviews() {
     const displayed = showAll ? entries : entries.slice(0, 5);
     visibleEntries = new Map(entries.map(item => [item.id, item]));
     $('#review-list').innerHTML = displayed.length ? displayed.map(reviewCard).join('') : '<div class="empty-state">Chưa tìm thấy review phù hợp với bộ lọc này.</div>';
-    $('#show-all-reviews').hidden = !hasMore || showAll;
+    const expandButton = $('#show-all-reviews');
+    expandButton.hidden = !hasMore;
+    expandButton.textContent = showAll ? 'Rút gọn' : 'Hiện tất cả đánh giá';
   }
-  setReviewSchoolFilter = school => { $('#review-search').value = school || ''; renderReviews(); };
-  ['review-search','review-region','review-country','review-rating'].forEach(id => $(`#${id}`).addEventListener('input', renderReviews));
-  $('#show-all-reviews').addEventListener('click', () => { showAll = true; renderReviews(); });
+  setReviewSchoolFilter = school => { showAll = false; $('#review-search').value = school || ''; renderReviews(); };
+  ['review-search','review-region','review-country','review-rating'].forEach(id => $(`#${id}`).addEventListener('input', () => { showAll = false; renderReviews(); }));
+  $('#show-all-reviews').addEventListener('click', () => { showAll = !showAll; renderReviews(); });
   $('#review-list').addEventListener('click', event => {
+    const school = event.target.closest('[data-review-school]');
+    if (school) { showDetail(school.dataset.reviewSchool); return; }
     const details = event.target.closest('[data-rating-details]');
     if (details) {
       const review = visibleEntries.get(details.dataset.ratingDetails); if (!review) return;
@@ -303,7 +330,8 @@ function initReviews() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const school = compact(form.get('school')); const learning = Number(form.get('learning')); const housing = Number(form.get('housing')); const living = Number(form.get('living')); const comment = compact(form.get('comment'));
-    const partner = DATA.partners.find(p => normal(p.name) === normal(school));
+    const partner = partnerByName(school);
+    if (!partner) { toast('Vui lòng chọn một trường trong danh sách đối tác FTU.'); return; }
     const reviewId = comment ? `local-review-${Date.now()}` : null;
     const savedRatings = localStore.read('ftux-ratings'); savedRatings.push({ id:`local-rating-${Date.now()}`, reviewId, school, learning, housing, living }); localStore.write('ftux-ratings', savedRatings);
     if (comment) {
@@ -318,6 +346,13 @@ function initReviews() {
 }
 document.addEventListener('click', event => {
   const detailButton = event.target.closest('[data-partner]'); if (detailButton) showDetail(detailButton.dataset.partner);
+  const expandMappings = event.target.closest('[data-expand-mappings]');
+  if (expandMappings) {
+    const isExpanded = expandMappings.dataset.expanded === 'true';
+    $$('.mapping-extra', $('#detail-content')).forEach(row => { row.hidden = isExpanded; });
+    expandMappings.dataset.expanded = String(!isExpanded);
+    expandMappings.textContent = isExpanded ? expandMappings.dataset.defaultLabel : 'Rút gọn';
+  }
   if (event.target.closest('[data-back-catalog]')) history.back();
   if (event.target.closest('[data-open-alumni]')) {
     const school = $('#detail h1')?.textContent?.trim() || '';
