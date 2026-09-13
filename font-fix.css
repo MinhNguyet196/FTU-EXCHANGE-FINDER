@@ -74,7 +74,10 @@ dialog label span { color: var(--muted); font-weight: 400; }
 .rating-detail-lines { border-top:1px solid var(--line); }
 .rating-detail-lines > div { display:flex; justify-content:space-between; gap:18px; padding:14px 0; border-bottom:1px solid var(--line); }
 .rating-detail-lines b { color:var(--gold); letter-spacing:1px; white-space:nowrap; }
-.show-all-reviews { display:block; margin:25px auto 0; border:1px solid var(--red); color:var(--red); background:#fff; border-radius:7px; padding:11px 17px; font-weight:700; }
+.show-all-reviews, .show-all-mappings { display:block; margin:25px auto 0; border:1px solid var(--red); color:var(--red); background:#fff; border-radius:7px; padding:11px 17px; font-weight:700; font-family:Arial, Tahoma, sans-serif; }
+.show-all-reviews:hover, .show-all-mappings:hover { background:#fff3f4; }
+.review-school-link { color:var(--red); background:transparent; border:0; padding:0; font:inherit; text-decoration:underline; text-underline-offset:2px; }
+.review-school-link:hover { color:var(--red-deep); }
 @media (max-width: 800px) { .criteria-inputs { grid-template-columns:1fr; gap:0; } .review-featured { padding:0 20px 55px; } .review-featured-heading { align-items:start; flex-direction:column; } .school-rating-summary { grid-template-columns:1fr; gap:22px; } .school-rating-summary .score-big { border:0; padding:0; } .school-rating-summary .score-bars>div { grid-template-columns:115px 1fr 36px; } }
 @media (max-width: 800px) {
   .review-filters { grid-template-columns: 1fr 1fr; margin: 28px 20px 0; padding: 18px; }
