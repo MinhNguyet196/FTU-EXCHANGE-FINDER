@@ -31,6 +31,36 @@ const placeLabels = { Asia: 'Châu Á', Europe: 'Châu Âu', America: 'Châu M�
 const countryChoices = [
   ['Norway','Na Uy'],['Sweden','Thụy Điển'],['Finland','Phần Lan'],['Germany','Đức'],['France','Pháp'],['Belgium','Bỉ'],['Switzerland','Thụy Sĩ'],['Spain','Tây Ban Nha'],['Italy','Ý'],['Canada','Canada'],['USA','Mỹ'],['Australia','Úc'],['Taiwan','Đài Loan'],['Korea','Hàn Quốc'],['Russia','Nga'],['Japan','Nhật Bản'],['China','Trung Quốc']
 ].map(([value,label]) => ({value,label})).sort((a,b) => a.label.localeCompare(b.label, 'vi'));
+const languagePatterns = {
+  english: /tieng\s*anh/,
+  french: /tieng\s*phap/,
+  german: /tieng\s*duc/,
+  chinese: /tieng\s*trung/,
+  japanese: /tieng\s*nhat/,
+  korean: /tieng\s*han/
+};
+const certificatePatterns = {
+  'english-certificate': /ielts|toefl/,
+  'french-certificate': /delf|dalf|tcf/,
+  'german-certificate': /goethe|telc/,
+  'chinese-certificate': /hsk/,
+  'japanese-certificate': /jlpt/,
+  'korean-certificate': /topik/
+};
+function normalizedText(value = '') { return normal(value).replace(/[^a-z0-9]/g, ''); }
+function teachesLanguage(partner, language) {
+  const text = normal(String(partner.language || '').replace(/đ/gi, 'd'));
+  return languagePatterns[language]?.test(text) || false;
+}
+function hasRequirement(partner, requirement) {
+  const text = normal(partner.requirements || '');
+  if (requirement === 'no-certificate') {
+    const explicitNoCertificate = /khongyeucau.*chungchi|khongcan.*chungchi/.test(text);
+    const anyCertificate = Object.values(certificatePatterns).some(pattern => pattern.test(text)) || /duolingo|toeic|cambridge|chungchi/.test(text);
+    return explicitNoCertificate || !anyCertificate;
+  }
+  return certificatePatterns[requirement]?.test(text) || false;
+}
 // The source exchanges classify equivalencies by FTU faculty, not by major.
 const majorToFaculty = {
   economics:['KTQT','KT&KDQT'],logistics:['KT&KDQT'],'international-economics':['KTQT','KT&KDQT'],'digital-economics':['KTQT','CN&KHDL','KHDL'],'international-business':['KT&KDQT'],'commercial-business':['KT&KDQT'],
@@ -152,9 +182,9 @@ function filteredPartners() {
     const searchablePlace = normal(`${p.name} ${p.country} ${p.region} ${placeAliases[p.country] || ''} ${placeAliases[p.region] || ''}`);
     const selectedFacultyGroups = majorToFaculty[faculty] || [];
     const isCountryOrRegion = !country || (country.startsWith('region:') ? p.region === country.slice(7) : p.country === country);
-    const meetsLanguageRequirement = !requirement || requirement.split('|').some(certificate => p.requirements.toUpperCase().includes(certificate));
+    const meetsLanguageRequirement = !requirement || hasRequirement(p, requirement);
     const matchesMajor = !faculty || uniqueMappings(p).some(m => selectedFacultyGroups.some(group => normal(m.faculty).includes(normal(group))));
-    return (!query || searchablePlace.includes(query)) && isCountryOrRegion && (!language || p.language.includes(language)) && meetsLanguageRequirement && matchesMajor;
+    return (!query || searchablePlace.includes(query)) && isCountryOrRegion && (!language || teachesLanguage(p, language)) && meetsLanguageRequirement && matchesMajor;
   });
 }
 function renderCatalog() {
@@ -166,6 +196,8 @@ function renderCatalog() {
 }
 function initCatalog() {
   const regions = [...new Set(DATA.partners.map(p => p.region).filter(Boolean))].sort();
+  $('#language-filter').innerHTML = '<option value="">Tất cả ngôn ngữ</option><option value="english">Tiếng Anh</option><option value="french">Tiếng Pháp</option><option value="german">Tiếng Đức</option><option value="chinese">Tiếng Trung</option><option value="japanese">Tiếng Nhật</option><option value="korean">Tiếng Hàn</option>';
+  $('#requirement-filter').innerHTML = '<option value="">Tất cả yêu cầu</option><option value="english-certificate">Chứng chỉ tiếng Anh: IELTS / TOEFL</option><option value="french-certificate">Chứng chỉ tiếng Pháp: DELF / DALF / TCF</option><option value="german-certificate">Chứng chỉ tiếng Đức: Goethe / telc</option><option value="chinese-certificate">Chứng chỉ tiếng Trung: HSK</option><option value="japanese-certificate">Chứng chỉ tiếng Nhật: JLPT</option><option value="korean-certificate">Chứng chỉ tiếng Hàn: TOPIK</option><option value="no-certificate">Không yêu cầu chứng chỉ ngoại ngữ / Chỉ yêu cầu trình độ</option>';
   $('#country-filter').insertAdjacentHTML('beforeend', `<optgroup label="Châu lục">${regions.map(region => `<option value="region:${region}">${escapeHtml(placeLabels[region] || region)}</option>`).join('')}</optgroup><optgroup label="Quốc gia / vùng lãnh thổ">${countryChoices.map(country => `<option value="${escapeHtml(country.value)}">${escapeHtml(country.label)}</option>`).join('')}</optgroup>`);
   const schoolOptions = DATA.partners.map(partner => `<option value="${escapeHtml(partner.name)}"></option>`).join('');
   $('#hero-school-options').innerHTML = schoolOptions;
