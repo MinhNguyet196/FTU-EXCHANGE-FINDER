@@ -92,20 +92,13 @@ function mappingsFor(partner) {
 function uniqueMappings(partner) {
   const seen = new Set();
   return mappingsFor(partner).filter(m => {
-    const signature = `${m.partnerCourse}-${m.ftuCode}`;
+    const signature = `${m.partnerCourse}-${m.partnerCode}-${m.ftuCourse}-${(m.ftuCodes || []).join('|')}`;
     if (seen.has(signature)) return false;
     seen.add(signature); return true;
   });
 }
-function oneMappingPerFtuCourse(records) {
-  const seen = new Set();
-  return records.filter(record => {
-    const code = record.ftuCode.toUpperCase();
-    if (seen.has(code)) return false;
-    seen.add(code); return true;
-  });
-}
-function score(partner) { return new Set(uniqueMappings(partner).map(m => m.ftuCode)).size; }
+function mappingCodes(mapping) { return mapping.ftuCodes || (mapping.ftuCode ? [mapping.ftuCode] : []); }
+function score(partner) { return uniqueMappings(partner).length; }
 function photo(partner) { return images[partner.country] || images.default; }
 function escapeHtml(value = '') { return value.replace(/[&<>'"]/g, ch => ({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;' }[ch])); }
 function iconRefresh() { if (window.lucide) lucide.createIcons(); }
@@ -124,28 +117,21 @@ function showDetail(id, updateHistory = true) {
   const partner = DATA.partners.find(p => p.id === id); if (!partner) return;
   const uploadedCodes = uploadMatchCodesByPartner.get(partner.id);
   const isUploadMatch = uploadedCodes?.size > 0;
-  // A recommendation counts unique FTU course codes, so the detail view uses
-  // the same definition and shows one partner-course mapping for each code.
-  const maps = isUploadMatch
-    ? oneMappingPerFtuCourse(uniqueMappings(partner).filter(m => uploadedCodes.has(m.ftuCode.toUpperCase())))
-    : uniqueMappings(partner);
+  const allMaps = uniqueMappings(partner);
+  const matchedMaps = isUploadMatch
+    ? allMaps.filter(mapping => mappingCodes(mapping).some(code => uploadedCodes.has(code.toUpperCase())))
+    : [];
   const cost = DATA.costs[partner.country] || { living: 'Đang cập nhật theo khu vực', housing: 'Tùy loại hình lưu trú' };
-  const grouped = new Map();
-  maps.forEach(mapping => {
-    const key = normal(mapping.ftuCourse);
-    if (!grouped.has(key)) grouped.set(key, { ftuCourse:mapping.ftuCourse, ftuCodes:new Set(), partnerCourses:[] });
-    const group = grouped.get(key); group.ftuCodes.add(mapping.ftuCode);
-    if (!group.partnerCourses.some(item => item.course === mapping.partnerCourse && item.code === mapping.partnerCode)) group.partnerCourses.push({course:mapping.partnerCourse, code:mapping.partnerCode});
-  });
-  const groups = [...grouped.values()];
   const previewCount = isUploadMatch ? 5 : 10;
-  const rowFor = (group, hidden = false) => `<tr${hidden ? ' class="mapping-extra" hidden' : ''}><td>${group.partnerCourses.map(item => `<b>${escapeHtml(item.course)}</b>${item.code ? `<br><code>${escapeHtml(item.code)}</code>` : ''}`).join('<hr>')}</td><td><b>${escapeHtml(group.ftuCourse)}</b><br><code>${[...group.ftuCodes].map(escapeHtml).join(' / ')}</code></td></tr>`;
-  const rows = groups.length ? groups.map((group, index) => rowFor(group, index >= previewCount)).join('') : '<tr><td colspan="2">Chưa có thông tin về các học phần tương đương của trường này.</td></tr>';
+  const rowFor = (mapping, hidden = false) => `<tr${hidden ? ' class="mapping-extra" hidden' : ''}><td><b>${escapeHtml(mapping.partnerCourse)}</b>${mapping.partnerCode ? `<br><code>${escapeHtml(mapping.partnerCode)}</code>` : ''}</td><td><b>${escapeHtml(mapping.ftuCourse)}</b><br><code>${mappingCodes(mapping).map(escapeHtml).join(' / ')}</code></td></tr>`;
+  const previewMaps = isUploadMatch ? matchedMaps.slice(0, previewCount) : allMaps.slice(0, previewCount);
+  const extraMaps = isUploadMatch ? [...matchedMaps.slice(previewCount), ...allMaps.filter(mapping => !matchedMaps.includes(mapping))] : allMaps.slice(previewCount);
+  const rows = allMaps.length ? [...previewMaps.map(mapping => rowFor(mapping)), ...extraMaps.map(mapping => rowFor(mapping, true))].join('') : '<tr><td colspan="2">Chưa có thông tin về các học phần tương đương của trường này.</td></tr>';
   const mappingIntro = isUploadMatch
-    ? `Đây là <b>${groups.length} học phần trùng khớp</b> với chương trình bạn đã tải lên. Bạn đang xem ${Math.min(previewCount, groups.length)} môn đầu tiên.`
+    ? `Đây là <b>${matchedMaps.length} học phần trùng khớp</b> với chương trình bạn đã tải lên. Bạn đang xem ${Math.min(previewCount, matchedMaps.length)} môn đầu tiên.`
     : `Đây là danh sách các học phần quy đổi tại ${escapeHtml(partner.name)}. Quy đổi cuối cùng phụ thuộc vào đề cương và phê duyệt ở từng kỳ.`;
-  const expandMappings = groups.length > previewCount ? `<button class="show-all-mappings" type="button" data-expand-mappings data-default-label="Hiển thị tất cả ${groups.length} môn">Hiển thị tất cả ${groups.length} môn</button>` : '';
-  $('#detail-content').innerHTML = `<section class="detail-hero" style="--hero-image:url('${photo(partner)}')"><div class="detail-hero-content"><button class="back-link" data-back-catalog><i data-lucide="arrow-left"></i> Quay lại danh sách</button><p class="eyebrow">${escapeHtml(partner.region || 'GLOBAL')} · ${escapeHtml(partner.country || '')}</p><h1>${escapeHtml(partner.name)}</h1><p>${escapeHtml(partner.language || 'Thông tin ngôn ngữ đang cập nhật')}</p></div></section><div class="detail-shell"><div class="detail-stats"><div><span>Chỉ tiêu</span><b>${escapeHtml(partner.slots || '—')} sinh viên</b></div><div><span>${isUploadMatch ? 'Môn trùng khớp CTĐT' : 'Học phần đã đối chiếu'}</span><b>${isUploadMatch ? groups.length : score(partner)} môn</b></div><div><span>Sinh hoạt phí</span><b>${escapeHtml(cost.living)}</b></div><button class="detail-stat-link" type="button" data-open-alumni aria-label="Xem đánh giá từ alumni"><span>Đánh giá từ alumni</span><b>4.5 / 5 ★</b><small>Xem review →</small></button></div><div class="detail-grid"><article><h2>Thông tin tổng quan</h2><p>${partner.notes ? escapeHtml(partner.notes) : `Đối tác trao đổi tại ${escapeHtml(partner.country || 'quốc gia sở tại')}, nằm trong danh sách mở đăng ký bổ sung kỳ Fall 2026.`}</p><h2>Danh sách môn học tương đương</h2><p>${mappingIntro}</p><table class="mapping-table"><thead><tr><th>MÔN Ở TRƯỜNG ĐỐI TÁC</th><th>HỌC PHẦN QUY ĐỔI TẠI FTU</th></tr></thead><tbody>${rows}</tbody></table>${expandMappings}</article><aside class="side-panel"><h2>Điều kiện ứng tuyển</h2><dl><dt>Yêu cầu GPA / ngoại ngữ</dt><dd>${escapeHtml(partner.requirements || 'Chưa có yêu cầu cụ thể trong dữ liệu mở đăng ký.')}</dd><dt>Ngôn ngữ giảng dạy</dt><dd>${escapeHtml(partner.language || 'Đang cập nhật')}</dd><dt>Học bổng</dt><dd>${escapeHtml(partner.scholarship || 'Chưa công bố')}</dd><dt>Học phần đối tác</dt><dd>${partner.courseUrl ? `<a target="_blank" rel="noopener" href="${escapeHtml(partner.courseUrl)}">Mở catalogue chính thức ↗</a>` : 'Chưa đính kèm đường dẫn'}</dd></dl><h3>Chi phí & lưu trú</h3><dl><dt>Sinh hoạt cơ bản</dt><dd>${escapeHtml(cost.living)}</dd><dt>Nhà ở ước tính</dt><dd>${escapeHtml(cost.housing)}</dd></dl></aside></div></div>`;
+  const expandMappings = extraMaps.length ? `<button class="show-all-mappings" type="button" data-expand-mappings data-default-label="Hiển thị tất cả ${allMaps.length} môn">Hiển thị tất cả ${allMaps.length} môn</button>` : '';
+  $('#detail-content').innerHTML = `<section class="detail-hero" style="--hero-image:url('${photo(partner)}')"><div class="detail-hero-content"><button class="back-link" data-back-catalog><i data-lucide="arrow-left"></i> Quay lại danh sách</button><p class="eyebrow">${escapeHtml(partner.region || 'GLOBAL')} · ${escapeHtml(partner.country || '')}</p><h1>${escapeHtml(partner.name)}</h1><p>${escapeHtml(partner.language || 'Thông tin ngôn ngữ đang cập nhật')}</p></div></section><div class="detail-shell"><div class="detail-stats"><div><span>Chỉ tiêu</span><b>${escapeHtml(partner.slots || '—')} sinh viên</b></div><div><span>${isUploadMatch ? 'Môn trùng khớp CTĐT' : 'Học phần quy đổi'}</span><b>${isUploadMatch ? matchedMaps.length : score(partner)} môn</b></div><div><span>Sinh hoạt phí</span><b>${escapeHtml(cost.living)}</b></div><button class="detail-stat-link" type="button" data-open-alumni aria-label="Xem đánh giá từ alumni"><span>Đánh giá từ alumni</span><b>4.5 / 5 ★</b><small>Xem review →</small></button></div><div class="detail-grid"><article><h2>Thông tin tổng quan</h2><p>${partner.notes ? escapeHtml(partner.notes) : `Đối tác trao đổi tại ${escapeHtml(partner.country || 'quốc gia sở tại')}, nằm trong danh sách mở đăng ký bổ sung kỳ Fall 2026.`}</p><h2>Danh sách môn học tương đương</h2><p>${mappingIntro}</p><table class="mapping-table"><thead><tr><th>MÔN Ở TRƯỜNG ĐỐI TÁC</th><th>HỌC PHẦN QUY ĐỔI TẠI FTU</th></tr></thead><tbody>${rows}</tbody></table>${expandMappings}</article><aside class="side-panel"><h2>Điều kiện ứng tuyển</h2><dl><dt>Yêu cầu GPA / ngoại ngữ</dt><dd>${escapeHtml(partner.requirements || 'Chưa có yêu cầu cụ thể trong dữ liệu mở đăng ký.')}</dd><dt>Ngôn ngữ giảng dạy</dt><dd>${escapeHtml(partner.language || 'Đang cập nhật')}</dd><dt>Học bổng</dt><dd>${escapeHtml(partner.scholarship || 'Chưa công bố')}</dd><dt>Học phần đối tác</dt><dd>${partner.courseUrl ? `<a target="_blank" rel="noopener" href="${escapeHtml(partner.courseUrl)}">Mở catalogue chính thức ↗</a>` : 'Chưa đính kèm đường dẫn'}</dd></dl><h3>Chi phí & lưu trú</h3><dl><dt>Sinh hoạt cơ bản</dt><dd>${escapeHtml(cost.living)}</dd><dt>Nhà ở ước tính</dt><dd>${escapeHtml(cost.housing)}</dd></dl></aside></div></div>`;
   const rating = getRatingSummary(partner.name);
   const ratingButton = $('.detail-stat-link');
   ratingButton.querySelector('b').textContent = rating ? `${rating.overall.toFixed(1)} / 5 ★` : 'Chưa có đánh giá';
@@ -215,7 +201,7 @@ function parseCurriculum(file) {
       const passed = new Set(distinct.filter(r => /\bx\b|đạt|pass|hoàn thành|[5-9](\.\d+)?|10/i.test(r.state) && !/chưa|fail|không đạt|nợ/i.test(r.state)).map(r => r.code));
       const unlearned = distinct.filter(r => !passed.has(r.code)).map(r => r.code);
       if (!distinct.length) throw new Error('Không nhận diện được cột mã học phần.');
-      const results = DATA.partners.map(p => { const convertible = [...new Set(uniqueMappings(p).map(m => m.ftuCode.toUpperCase()))].filter(code => unlearned.includes(code)); return { p, convertible }; }).filter(r => r.convertible.length >= 3).sort((a,b) => b.convertible.length-a.convertible.length);
+  const results = DATA.partners.map(p => { const convertible = [...new Set(uniqueMappings(p).flatMap(mappingCodes).map(code => code.toUpperCase()))].filter(code => unlearned.includes(code)); return { p, convertible }; }).filter(r => r.convertible.length >= 3).sort((a,b) => b.convertible.length-a.convertible.length);
       uploadMatchCodesByPartner = new Map(results.map(result => [result.p.id, new Set(result.convertible)]));
       const resultBox = $('#upload-result'); resultBox.hidden = false;
       resultBox.innerHTML = `<h3>Đã phân tích <b>${distinct.length}</b> học phần trong “${escapeHtml(file.name)}”</h3><p>Nhận diện ${passed.size} môn đã hoàn thành và ${unlearned.length} môn cần kiểm tra. Có ${results.length} trường có từ 3 môn quy đổi trở lên.</p><div class="match-pills">${results.slice(0,6).map(r => `<button data-partner="${escapeHtml(r.p.id)}">${escapeHtml(r.p.name)} · ${r.convertible.length} môn</button>`).join('') || '<span>Chưa có kết quả đủ điều kiện. Hãy kiểm tra định dạng cột điểm/trạng thái trong file tải lên.</span>'}</div>`;
