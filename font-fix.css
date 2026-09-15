@@ -78,6 +78,19 @@ dialog label span { color: var(--muted); font-weight: 400; }
 .show-all-reviews:hover, .show-all-mappings:hover { background:#fff3f4; }
 .review-school-link { color:var(--red); background:transparent; border:0; padding:0; font:inherit; text-decoration:underline; text-underline-offset:2px; }
 .review-school-link:hover { color:var(--red-deep); }
+
+/* Keep the three primary pages reachable on small phones instead of hiding
+   the navigation. The navigation becomes a compact second header row. */
+.brand-mark, .header-action { align-items:center; justify-content:center; }
+.brand-mark { line-height:1; padding-bottom:1px; }
+.header-action svg { display:block; flex:0 0 auto; }
+@media (max-width: 480px) {
+  .site-header { height:auto; min-height:64px; padding:9px 20px 8px; display:grid; grid-template-columns:1fr auto; gap:8px 12px; }
+  .brand { min-width:0; }
+  .header-action { width:44px; height:44px; padding:0; display:grid; place-items:center; }
+  .main-nav { display:grid; grid-column:1 / -1; grid-template-columns:repeat(3, 1fr); gap:0; width:100%; order:3; border-top:1px solid var(--line); padding-top:7px; }
+  .nav-link { text-align:center; white-space:nowrap; font-size:12px; padding:5px 1px; }
+}
 @media (max-width: 800px) { .criteria-inputs { grid-template-columns:1fr; gap:0; } .review-featured { padding:0 20px 55px; } .review-featured-heading { align-items:start; flex-direction:column; } .school-rating-summary { grid-template-columns:1fr; gap:22px; } .school-rating-summary .score-big { border:0; padding:0; } .school-rating-summary .score-bars>div { grid-template-columns:115px 1fr 36px; } }
 @media (max-width: 800px) {
   .review-filters { grid-template-columns: 1fr 1fr; margin: 28px 20px 0; padding: 18px; }
