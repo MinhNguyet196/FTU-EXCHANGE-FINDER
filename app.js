@@ -105,7 +105,6 @@ let sharedReviewRecords = null;
 function partnerByName(name) { return DATA.partners.find(partner => normal(partner.name) === normal(name)); }
 // Reviews are only valid for confirmed FTU partner schools. This also hides
 // legacy sample/browser data that may have been entered for another school.
-function allRatings() { return [...seedRatings, ...localStore.read('ftux-ratings')].filter(item => Boolean(partnerByName(item.school))); }
 function allRatings() {
   const records = sharedReviewRecords === null ? [...seedRatings, ...localStore.read('ftux-ratings')] : sharedReviewRecords;
   return records.filter(item => Boolean(partnerByName(item.school)));
@@ -316,7 +315,6 @@ function initReviews() {
   let visibleEntries = new Map();
   let currentEntryOrder = [];
   let preserveCurrentOrder = false;
-  function selectedVote(id) { return interactions().find(item => item.id === id)?.vote || null; }
   function selectedVote(id) {
     if (usingSharedReviews()) {
       const vote = sharedVotes.find(item => item.review_id === id && item.user_id === currentUserId)?.vote;
@@ -334,7 +332,6 @@ function initReviews() {
     }, { likes: 0, dislikes: 0 });
   }
   function interactionTotal(item) {
-    return Number(item.likes || 0) + Number(item.dislikes || 0) + (selectedVote(item.id) ? 1 : 0);
     const counts = voteCounts(item.id, item);
     return counts.likes + counts.dislikes;
   }
@@ -346,8 +343,6 @@ function initReviews() {
   }
   function reviewCard(review) {
     const choice = selectedVote(review.id);
-    const displayedLikes = Number(review.likes || 0) + (choice === 'like' ? 1 : 0);
-    const displayedDislikes = Number(review.dislikes || 0) + (choice === 'dislike' ? 1 : 0);
     const counts = voteCounts(review.id, review);
     const displayedLikes = counts.likes;
     const displayedDislikes = counts.dislikes;
@@ -365,7 +360,6 @@ function initReviews() {
   }
   function renderReviews() {
     const q = normal($('#review-search').value), region = regionSelect.value, country = countrySelect.value, order = $('#review-rating').value;
-    const reviews = [...seedReviews, ...localStore.read('ftux-reviews')].filter(review => Boolean(partnerByName(review.school)));
     const reviews = usingSharedReviews() ? [] : localReviews();
     const exactSchool = DATA.partners.find(p => normal(p.name) === q)?.name;
     $('.school-rating-summary')?.remove();
@@ -399,7 +393,6 @@ function initReviews() {
   setReviewSchoolFilter = school => { preserveCurrentOrder = false; showAll = false; $('#review-search').value = school || ''; renderReviews(); };
   ['review-search','review-region','review-country','review-rating'].forEach(id => $(`#${id}`).addEventListener('input', () => { preserveCurrentOrder = false; showAll = false; renderReviews(); }));
   $('#show-all-reviews').addEventListener('click', () => { showAll = !showAll; renderReviews(); });
-  $('#review-list').addEventListener('click', event => {
   $('#review-list').addEventListener('click', async event => {
     const school = event.target.closest('[data-review-school]');
     if (school) { showDetail(school.dataset.reviewSchool); return; }
@@ -434,7 +427,6 @@ function initReviews() {
   const dialog = $('#review-dialog');
   $$('[data-open-review]').forEach(button => button.addEventListener('click', () => dialog.showModal()));
   $('[data-close-review]').addEventListener('click', () => dialog.close());
-  $('#review-form').addEventListener('submit', event => {
   $('#review-form').addEventListener('submit', async event => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
