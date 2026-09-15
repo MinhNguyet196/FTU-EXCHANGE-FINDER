@@ -271,6 +271,8 @@ function initReviews() {
   const interactionKey = 'ftux-review-interactions';
   const interactions = () => localStore.read(interactionKey);
   let visibleEntries = new Map();
+  let currentEntryOrder = [];
+  let preserveCurrentOrder = false;
   function selectedVote(id) { return interactions().find(item => item.id === id)?.vote || null; }
   function interactionTotal(item) {
     return Number(item.likes || 0) + Number(item.dislikes || 0) + (selectedVote(item.id) ? 1 : 0);
@@ -313,6 +315,13 @@ function initReviews() {
       if (interactionDifference) return interactionDifference;
       return order === 'rating-asc' ? reviewAverage(a) - reviewAverage(b) : reviewAverage(b) - reviewAverage(a);
     });
+    // A click updates the reaction immediately but deliberately leaves the
+    // card in place. The normal “nổi bật” order is recalculated on reload.
+    if (preserveCurrentOrder) {
+      const priorPosition = new Map(currentEntryOrder.map((id, index) => [id, index]));
+      entries.sort((a, b) => (priorPosition.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (priorPosition.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+    }
+    currentEntryOrder = entries.map(item => item.id);
     const hasMore = entries.length > 5;
     const displayed = showAll ? entries : entries.slice(0, 5);
     visibleEntries = new Map(entries.map(item => [item.id, item]));
@@ -321,8 +330,8 @@ function initReviews() {
     expandButton.hidden = !hasMore;
     expandButton.textContent = showAll ? 'Rút gọn' : 'Hiện tất cả đánh giá';
   }
-  setReviewSchoolFilter = school => { showAll = false; $('#review-search').value = school || ''; renderReviews(); };
-  ['review-search','review-region','review-country','review-rating'].forEach(id => $(`#${id}`).addEventListener('input', () => { showAll = false; renderReviews(); }));
+  setReviewSchoolFilter = school => { preserveCurrentOrder = false; showAll = false; $('#review-search').value = school || ''; renderReviews(); };
+  ['review-search','review-region','review-country','review-rating'].forEach(id => $(`#${id}`).addEventListener('input', () => { preserveCurrentOrder = false; showAll = false; renderReviews(); }));
   $('#show-all-reviews').addEventListener('click', () => { showAll = !showAll; renderReviews(); });
   $('#review-list').addEventListener('click', event => {
     const school = event.target.closest('[data-review-school]');
@@ -338,7 +347,7 @@ function initReviews() {
     const item = saved.find(entry => entry.id === id);
     if (item) item.vote = item.vote === requested ? null : requested;
     else saved.push({ id, vote: requested });
-    localStore.write(interactionKey, saved); renderReviews();
+    localStore.write(interactionKey, saved); preserveCurrentOrder = true; renderReviews();
   });
   renderReviews();
   const dialog = $('#review-dialog');
