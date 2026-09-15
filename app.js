@@ -95,10 +95,21 @@ const localStore = {
   read(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; } },
   write(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }
 };
+// Publishable keys are designed for browser use. All access is constrained by
+// the Row Level Security policies configured in the linked Supabase project.
+const supabaseClient = window.supabase?.createClient(
+  'https://pqomnfrvyodikcvcvqqk.supabase.co',
+  'sb_publishable_DcpeJ79ShZAUW2Vcl8MTtg_496LiV31'
+);
+let sharedReviewRecords = null;
 function partnerByName(name) { return DATA.partners.find(partner => normal(partner.name) === normal(name)); }
 // Reviews are only valid for confirmed FTU partner schools. This also hides
 // legacy sample/browser data that may have been entered for another school.
 function allRatings() { return [...seedRatings, ...localStore.read('ftux-ratings')].filter(item => Boolean(partnerByName(item.school))); }
+function allRatings() {
+  const records = sharedReviewRecords === null ? [...seedRatings, ...localStore.read('ftux-ratings')] : sharedReviewRecords;
+  return records.filter(item => Boolean(partnerByName(item.school)));
+}
 function reviewAverage(item) { return (Number(item.learning) + Number(item.housing) + Number(item.living)) / 3; }
 function getRatingSummary(school) {
   const ratings = allRatings().filter(item => normal(item.school) === normal(school) && ['learning','housing','living'].every(key => Number.isFinite(Number(item[key]))));
@@ -268,14 +279,64 @@ function initReviews() {
   });
   if (migrated) localStore.write('ftux-ratings', legacyRatings);
   let showAll = false;
+  let sharedVotes = [];
+  let currentUserId = null;
+  const usingSharedReviews = () => sharedReviewRecords !== null;
+  const localReviews = () => [...seedReviews, ...localStore.read('ftux-reviews')].filter(review => Boolean(partnerByName(review.school)));
+  async function refreshSharedReviews() {
+    if (!supabaseClient) return;
+    const [reviewResult, voteResult] = await Promise.all([
+      supabaseClient.from('reviews').select('*').order('created_at', { ascending: true }),
+      supabaseClient.from('review_votes').select('review_id,user_id,vote')
+    ]);
+    if (reviewResult.error) throw reviewResult.error;
+    if (voteResult.error) throw voteResult.error;
+    sharedReviewRecords = reviewResult.data || [];
+    sharedVotes = voteResult.data || [];
+  }
+  async function connectSharedReviews() {
+    if (!supabaseClient) return;
+    try {
+      let { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        const signIn = await supabaseClient.auth.signInAnonymously();
+        if (!signIn.error) session = signIn.data.session;
+      }
+      currentUserId = session?.user?.id || null;
+      await refreshSharedReviews();
+      renderReviews();
+    } catch (error) {
+      // Keep the old device-only data available if the shared service is
+      // temporarily unreachable. New submissions show a useful message.
+      console.warn('Could not load shared reviews:', error.message);
+    }
+  }
   const interactionKey = 'ftux-review-interactions';
   const interactions = () => localStore.read(interactionKey);
   let visibleEntries = new Map();
   let currentEntryOrder = [];
   let preserveCurrentOrder = false;
   function selectedVote(id) { return interactions().find(item => item.id === id)?.vote || null; }
+  function selectedVote(id) {
+    if (usingSharedReviews()) {
+      const vote = sharedVotes.find(item => item.review_id === id && item.user_id === currentUserId)?.vote;
+      return vote === 1 ? 'like' : vote === -1 ? 'dislike' : null;
+    }
+    return interactions().find(item => item.id === id)?.vote || null;
+  }
+  function voteCounts(id, review) {
+    if (!usingSharedReviews()) return { likes: Number(review.likes || 0) + (selectedVote(id) === 'like' ? 1 : 0), dislikes: Number(review.dislikes || 0) + (selectedVote(id) === 'dislike' ? 1 : 0) };
+    return sharedVotes.reduce((counts, vote) => {
+      if (vote.review_id !== id) return counts;
+      if (vote.vote === 1) counts.likes += 1;
+      if (vote.vote === -1) counts.dislikes += 1;
+      return counts;
+    }, { likes: 0, dislikes: 0 });
+  }
   function interactionTotal(item) {
     return Number(item.likes || 0) + Number(item.dislikes || 0) + (selectedVote(item.id) ? 1 : 0);
+    const counts = voteCounts(item.id, item);
+    return counts.likes + counts.dislikes;
   }
   function summaryMarkup(school) {
     const summary = getRatingSummary(school);
@@ -287,6 +348,9 @@ function initReviews() {
     const choice = selectedVote(review.id);
     const displayedLikes = Number(review.likes || 0) + (choice === 'like' ? 1 : 0);
     const displayedDislikes = Number(review.dislikes || 0) + (choice === 'dislike' ? 1 : 0);
+    const counts = voteCounts(review.id, review);
+    const displayedLikes = counts.likes;
+    const displayedDislikes = counts.dislikes;
     const average = reviewAverage(review).toFixed(1);
     const initial = review.name.split(' ').slice(-1)[0]?.[0] || 'S';
     const schoolLink = DATA.partners.find(partner => normal(partner.name) === normal(review.school));
@@ -294,6 +358,7 @@ function initReviews() {
     return `<article class="review-card"><div class="review-head"><div class="reviewer"><span class="avatar">${initial}</span><div><b>${escapeHtml(review.name)}</b><small>${escapeHtml(review.meta)} · ${schoolText} · ${escapeHtml(review.country)}</small></div></div><button class="review-stars review-score-button" type="button" data-rating-details="${review.id}" aria-label="Xem chi tiết điểm ${average} trên 5">${stars(reviewAverage(review))} <small>${average}</small><span>Chi tiết</span></button></div>${review.text ? `<p>“${escapeHtml(review.text)}”</p>` : ''}<div class="review-actions"><button class="${choice === 'like' ? 'selected' : ''}" aria-pressed="${choice === 'like'}" type="button" data-vote="like" data-review-id="${review.id}">👍 Hữu ích <b>${displayedLikes}</b></button><button class="${choice === 'dislike' ? 'selected' : ''}" aria-pressed="${choice === 'dislike'}" type="button" data-vote="dislike" data-review-id="${review.id}">👎 <b>${displayedDislikes}</b></button></div></article>`;
   }
   function ratingEntry(rating, partner, reviews) {
+    if (usingSharedReviews()) return { id:rating.id, name:rating.reviewer, meta:rating.meta, school:rating.school, country:rating.country, region:rating.region, learning:rating.learning, housing:rating.housing, living:rating.living, likes:0, dislikes:0, text:rating.text || '' };
     const linkedReview = reviews.find(review => review.id === rating.reviewId);
     if (linkedReview) return linkedReview;
     return { id: rating.id, name:'Sinh viên ẩn danh', meta:'Đã chấm điểm · Không để lại chia sẻ', school:rating.school, country:partner?.country || '', region:partner?.region || '', learning:rating.learning, housing:rating.housing, living:rating.living, likes:0, dislikes:0, text:'' };
@@ -301,6 +366,7 @@ function initReviews() {
   function renderReviews() {
     const q = normal($('#review-search').value), region = regionSelect.value, country = countrySelect.value, order = $('#review-rating').value;
     const reviews = [...seedReviews, ...localStore.read('ftux-reviews')].filter(review => Boolean(partnerByName(review.school)));
+    const reviews = usingSharedReviews() ? [] : localReviews();
     const exactSchool = DATA.partners.find(p => normal(p.name) === q)?.name;
     $('.school-rating-summary')?.remove();
     if (exactSchool) $('.review-featured').insertAdjacentHTML('afterbegin', summaryMarkup(exactSchool));
@@ -334,6 +400,7 @@ function initReviews() {
   ['review-search','review-region','review-country','review-rating'].forEach(id => $(`#${id}`).addEventListener('input', () => { preserveCurrentOrder = false; showAll = false; renderReviews(); }));
   $('#show-all-reviews').addEventListener('click', () => { showAll = !showAll; renderReviews(); });
   $('#review-list').addEventListener('click', event => {
+  $('#review-list').addEventListener('click', async event => {
     const school = event.target.closest('[data-review-school]');
     if (school) { showDetail(school.dataset.reviewSchool); return; }
     const details = event.target.closest('[data-rating-details]');
@@ -344,21 +411,48 @@ function initReviews() {
     }
     const button = event.target.closest('[data-vote]'); if (!button) return;
     const saved = interactions(); const id = button.dataset.reviewId; const requested = button.dataset.vote;
+    if (usingSharedReviews()) {
+      if (!currentUserId) { toast('Hãy bật Anonymous Sign-Ins trong Supabase để có thể tương tác.'); return; }
+      const existing = sharedVotes.find(item => item.review_id === id && item.user_id === currentUserId);
+      const nextVote = requested === 'like' ? 1 : -1;
+      let result;
+      if (existing?.vote === nextVote) result = await supabaseClient.from('review_votes').delete().eq('review_id', id).eq('user_id', currentUserId);
+      else result = await supabaseClient.from('review_votes').upsert({ review_id:id, user_id:currentUserId, vote:nextVote }, { onConflict:'review_id,user_id' });
+      if (result.error) { toast(`Không thể lưu tương tác: ${result.error.message}`); return; }
+      preserveCurrentOrder = true;
+      await refreshSharedReviews();
+      renderReviews();
+      return;
+    }
     const item = saved.find(entry => entry.id === id);
     if (item) item.vote = item.vote === requested ? null : requested;
     else saved.push({ id, vote: requested });
     localStore.write(interactionKey, saved); preserveCurrentOrder = true; renderReviews();
   });
   renderReviews();
+  connectSharedReviews();
   const dialog = $('#review-dialog');
   $$('[data-open-review]').forEach(button => button.addEventListener('click', () => dialog.showModal()));
   $('[data-close-review]').addEventListener('click', () => dialog.close());
   $('#review-form').addEventListener('submit', event => {
+  $('#review-form').addEventListener('submit', async event => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const school = compact(form.get('school')); const learning = Number(form.get('learning')); const housing = Number(form.get('housing')); const living = Number(form.get('living')); const comment = compact(form.get('comment'));
     const partner = partnerByName(school);
     if (!partner) { toast('Vui lòng chọn một trường trong danh sách đối tác FTU.'); return; }
+    if (usingSharedReviews()) {
+      if (!currentUserId) { toast('Chưa thể gửi đánh giá. Vui lòng bật Anonymous Sign-Ins trong Supabase.'); return; }
+      const { error } = await supabaseClient.from('reviews').insert({
+        school, reviewer: compact(form.get('reviewer')), meta:'Đánh giá mới', country:partner.country, region:partner.region,
+        learning, housing, living, text:comment || null
+      });
+      if (error) { toast(`Không thể gửi đánh giá: ${error.message}`); return; }
+      await refreshSharedReviews();
+      dialog.close(); event.currentTarget.reset(); setReviewSchoolFilter(school);
+      toast(comment ? 'Đã gửi đánh giá và chia sẻ của bạn!' : 'Đã gửi đánh giá của bạn!');
+      return;
+    }
     const reviewId = comment ? `local-review-${Date.now()}` : null;
     const savedRatings = localStore.read('ftux-ratings'); savedRatings.push({ id:`local-rating-${Date.now()}`, reviewId, school, learning, housing, living }); localStore.write('ftux-ratings', savedRatings);
     if (comment) {
